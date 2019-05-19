@@ -118,12 +118,12 @@ void app_main()
 	int i; 
 	char **argv, *_argv[] = {
 		"squeezelite-esp32",
+		"-C",
+		"1",
 		"-n",
 		"ESP32",
 		"-d",
 		"all=info",
-		"-d",
-		"slimproto=debug",
 		"-b",
 		"128:2000",
 	};

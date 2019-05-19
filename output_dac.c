@@ -59,7 +59,7 @@ void output_init_dac(log_level level, unsigned output_buf_size, char *params, un
 		rates[0] = 44100;
 	}
 
-	output_init_common(level, "-", output_buf_size, rates, 0);
+	output_init_common(level, "-", output_buf_size, rates, idle);
 
 #if LINUX || OSX || FREEBSD || POSIX
 	pthread_attr_t attr;
@@ -133,7 +133,13 @@ static void *output_thread() {
 	while (running) {
 
 		LOCK;
-
+		
+		if (output.state == OUTPUT_OFF) {
+			UNLOCK;
+			usleep(500000);
+			continue;
+		}		
+			
 		output.device_frames = 0;
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
@@ -146,7 +152,7 @@ static void *output_thread() {
 			//fwrite(buf, bytes_per_frame, buffill, stdout);
 			buffill = 0;
 		}
-
+		
 	}
 
 	return 0;
