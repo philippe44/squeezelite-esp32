@@ -125,7 +125,7 @@ void app_main()
 		"-d",
 		"all=info",
 		"-b",
-		"128:2000",
+		"256:2000",
 	};
 	
 	// can't do strtok on FLASH strings

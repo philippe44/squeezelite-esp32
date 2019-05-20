@@ -10,3 +10,7 @@ void get_mac(u8_t mac[]) {
 _sig_func_ptr signal(int sig, _sig_func_ptr func) {
 	return NULL;
 }
+
+void *audio_calloc(size_t nmemb, size_t size) {
+		return calloc(nmemb, size);
+}

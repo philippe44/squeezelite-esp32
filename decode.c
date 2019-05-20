@@ -80,7 +80,7 @@ static void *decode_thread() {
 			IF_PROCESS(
 				min_space = process.max_out_frames * BYTES_PER_FRAME;
 			);
-			
+
 			if (space > min_space && (bytes > codec->min_read_bytes || toend)) {
 				
 				decode.state = codec->decode();
@@ -172,16 +172,18 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 #endif
 	if (!strstr(exclude_codecs, "ogg")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ogg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_vorbis());
+*/	
 	if (!strstr(exclude_codecs, "flac") && (!include_codecs || (order_codecs = strstr(include_codecs, "flac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_flac());
-*/	
+
 	if (!strstr(exclude_codecs, "pcm")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "pcm"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_pcm());
-/*
+
 	// try mad then mpg for mp3 unless command line option passed
 	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mad")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mad"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mad());
+/*		
 	else if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mpg")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mpg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mpg());

@@ -145,13 +145,16 @@ static void *output_thread() {
 		output.frames_played_dmp = output.frames_played;
 
 		_output_frames(FRAME_BLOCK);
-
+		
 		UNLOCK;
 
 		if (buffill) {
-			//fwrite(buf, bytes_per_frame, buffill, stdout);
+			// do something ...
+			usleep((buffill * 1000 * 1000) / output.current_sample_rate);			
 			buffill = 0;
-		}
+		} else {
+			usleep((FRAME_BLOCK * 1000 * 1000) / output.current_sample_rate);
+		}	
 		
 	}
 
