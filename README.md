@@ -1,10 +1,18 @@
 Adding squeezelite
  - libmad must be in a separated component otherwise linker whines about long call 
- - libfaad requires -mlongcalls
+ - libfaad 
+ 	- mlongcalls -O2 -DFIXED_POINT -DSMALL_STACK
+	- change ac_link in configure and case ac_files, remove ''
+	- compiler but in cfft.c and cffti1, must disable optimization using 
+		#pragma GCC push_options
+		#pragma GCC optimize ("O0")
+		#pragma GCC pop_options
+ - libflac can use espressif's version	
  - set IDF_PATH=/home/esp-idf
  - set ESPPORT=COM9
  - change <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)
- 
+ - change flash's size in serial flash config 
+  
 # Wifi SCAN Example
 
 This example shows how to use scan of ESP32.
