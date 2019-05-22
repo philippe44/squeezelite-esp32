@@ -56,3 +56,9 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+/sdkconfig
+/sdkconfig.old
+
+\.settings/
+
+build/
