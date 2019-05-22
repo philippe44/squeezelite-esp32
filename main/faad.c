@@ -314,7 +314,7 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 static decode_state faad_decode(void) {
 	size_t bytes_total;
 	size_t bytes_wrap;
-	NeAACDecFrameInfo info;
+	static NeAACDecFrameInfo info;
 	s32_t *iptr;
 	bool endstream;
 	frames_t frames;
@@ -400,7 +400,7 @@ static decode_state faad_decode(void) {
 	if (bytes_wrap < WRAPBUF_LEN && bytes_total > WRAPBUF_LEN) {
 
 		// make a local copy of frames which may have wrapped round the end of streambuf
-		u8_t buf[WRAPBUF_LEN];
+		static u8_t buf[WRAPBUF_LEN];
 		memcpy(buf, streambuf->readp, bytes_wrap);
 		memcpy(buf + bytes_wrap, streambuf->buf, WRAPBUF_LEN - bytes_wrap);
 

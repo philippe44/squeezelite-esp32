@@ -11,7 +11,9 @@ Adding squeezelite
  - set IDF_PATH=/home/esp-idf
  - set ESPPORT=COM9
  - change <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)
- - change flash's size in serial flash config 
+ - change flash's size in serial flash config to 16M
+ - change main stack size to 8000 as well (for app_main which is slimproto)
+ - use old "make" environment no CMake
   
 # Wifi SCAN Example
 
