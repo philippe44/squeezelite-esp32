@@ -313,8 +313,12 @@
 #include <sys/types.h>
 #endif /* SUN */
 
+#ifndef PTHREAD_STACK_MIN
+#define PTHREAD_STACK_MIN	256
+#endif
+
 #define STREAM_THREAD_STACK_SIZE  8 * 1024
-#define DECODE_THREAD_STACK_SIZE 32 * 1024
+#define DECODE_THREAD_STACK_SIZE 20 * 1024
 #define OUTPUT_THREAD_STACK_SIZE  8 * 1024
 #define IR_THREAD_STACK_SIZE      8 * 1024
 #if !OSX
