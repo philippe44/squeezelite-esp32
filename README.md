@@ -9,6 +9,8 @@
 			#pragma GCC optimize ("O0")
 			#pragma GCC pop_options
  - libflac can use espressif's version	
+ - vorbis
+	- set SPIRAM_MALLOC_ALWAYSINTERNAL to 2048 as it consumes a lot of 8K blocks and uses all internal memory - when no memoru, WiFI chip fails
  - set IDF_PATH=/home/esp-idf
  - set ESPPORT=COM9
  - ~~change <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)~~
