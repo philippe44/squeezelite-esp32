@@ -15,9 +15,10 @@ Adding squeezelite
  - change <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)
  - change flash's size in serial flash config to 16M
  - change main stack size to 8000 as well (for app_main which is slimproto)
+ - change SPIRAM_MALLOC_ALWAYSINTERNAL to 2048 so that vorbis does not exhaust ISRAM, but allocates to SPIRAM instead. When it is echausted, WiFi driver can't allocate SPIRAM (although it should and setting the option to ask it to allocated SPIRAM does not work)
  - use old "make" environment no CMake
  
-  
+ 
 # Wifi SCAN Example
 
 This example shows how to use scan of ESP32.
