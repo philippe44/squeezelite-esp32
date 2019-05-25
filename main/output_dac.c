@@ -1,6 +1,6 @@
 
 #include "squeezelite.h"
-#if DACAUDIO
+
 #include <signal.h>
 
 static log_level loglevel;
@@ -23,14 +23,11 @@ static unsigned buffill;
 static int bytes_per_frame;
 static thread_type thread;
 
-
 static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
 static void *output_thread();
 
 void set_volume(unsigned left, unsigned right) {}
-
-
 
 void output_init_dac(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
@@ -86,8 +83,6 @@ void output_close_dac(void) {
 	UNLOCK;
 
 	free(buf);
-
-
 
 	output_close_common();
 }
@@ -154,7 +149,7 @@ static void *output_thread() {
 		UNLOCK;
 
 		if (buffill) {
-// Do Stuff here
+			// do something ...
 			usleep((buffill * 1000 * 1000) / output.current_sample_rate);			
 			buffill = 0;
 		} else {
@@ -165,4 +160,4 @@ static void *output_thread() {
 
 	return 0;
 }
-#endif
+

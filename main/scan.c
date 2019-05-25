@@ -21,7 +21,6 @@
     can be sorted based on Authentication Mode or Signal Strength. The priority
     for the Authentication mode is:  WPA2 > WPA > WEP > Open
 */
-#include "squeezelite.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "esp_wifi.h"
@@ -114,7 +113,6 @@ static void wifi_scan(void)
 
 int main(int argc, char**argv);
 
-
 void app_main()
 {
 	int i; 
@@ -125,32 +123,17 @@ void app_main()
 		"-n",
 		"ESP32",
 		"-d",
-		"slimproto=" CONFIG_LOGGING_SLIMPROTO,
-		"-d",
-		"stream=" CONFIG_LOGGING_STREAM,
-		"-d",
-		"decode=" CONFIG_LOGGING_DECODE,
-		"-d",
-		"output=" CONFIG_LOGGING_OUTPUT,
+		"all=info",
 		"-b",
-		"256:2000"
-
+		"256:2000",
 	};
-
-
+	
 	// can't do strtok on FLASH strings
 	argv = malloc(sizeof(_argv));
 	for (i = 0; i < sizeof(_argv)/sizeof(char*); i++) {
 		argv[i] = strdup(_argv[i]);
 	}
-
-	logprint("%s %s:%d Calling main with parameters: " , logtime(), __FUNCTION__, __LINE__);
-
-	for (i = 0; i < sizeof(_argv)/sizeof(char*); i++) {
-		logprint("%s " , _argv[i]);
-	}
-	logprint("\n");
-
+	
     // Initialize NVS
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {

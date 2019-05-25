@@ -386,7 +386,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 			output.supported_rates[i] = rates[i];
 		}
 	}
-#if !defined( DACAUDIO ) && !defined( BTAUDIO )
+#ifndef DACAUDIO	
 	else {
 		if (!test_open(output.device, output.supported_rates, user_rates)) {
 			LOG_ERROR("unable to open output device: %s", output.device);

@@ -19,7 +19,7 @@
  */
 
 #include "squeezelite.h"
-#if CONFIG_INCLUDE_FLAC
+
 #include <FLAC/stream_decoder.h>
 
 struct flac {
@@ -294,4 +294,3 @@ struct codec *register_flac(void) {
 	LOG_INFO("using flac to decode flc");
 	return &ret;
 }
-#endif
