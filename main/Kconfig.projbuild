@@ -1,5 +1,33 @@
-menu "Example Configuration"
-
+menu "Squeezelite-ESP32"
+	menu "Logging"
+		config LOGGING_SLIMPROTO
+        	string "logging level for slimproto "
+        	default "info"
+        	help
+        		Set logging level info|debug|sdebug
+		config LOGGING_STREAM
+        	string "logging level for stream "
+        	default "info"
+        	help
+        		Set logging level info|debug|sdebug
+   		config LOGGING_DECODE
+        	string "logging level for decode"
+        	default "info"
+        	help
+        		Set logging level info|debug|sdebug 	
+   		config LOGGING_OUTPUT
+        	string "logging level for output"
+        	default "info"
+        	help
+        		Set logging level info|debug|sdebug 	
+        		
+	endmenu
+	config LOG_OPTION
+		string "squeezelite log option"
+		default "all=info"
+		help 
+			log=level	Set logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug
+	menu "Wifi Configuration"
     config WIFI_SSID
         string "WiFi SSID"
         default "myssid"
@@ -11,7 +39,7 @@ menu "Example Configuration"
         default "mypassword"
         help
             WiFi password (WPA or WPA2) for the example to use.
-
+  
     choice SCAN_METHOD
         prompt "scan method"
         default WIFI_FAST_SCAN
@@ -64,5 +92,61 @@ menu "Example Configuration"
         config EXAMPLE_WPA2
             bool "wpa2"
     endchoice
+    endmenu
+    menu "Audio CODEC libraries"
+    config INCLUDE_FLAC
+        bool "FLAC"
+        default 1
+        help
+            Include FLAC library for flc decoding.
+    config INCLUDE_FAAD
+        bool "FAAD"
+        default 1
+        help
+            Include FAAD library for aac decoding.
+    config INCLUDE_MAD
+    	depends on SPIRAM_SUPPORT
+        bool "MAD"
+        default 1
+        help
+            Include mad library for mp3 decoding.
+	config INCLUDE_VORBIS
+        bool "VORBIS"
+        default 1
+        help
+            Include vorbis/ogg library for ogg/vorbis decoding.			
+	config INCLUDE_ALAC
+        bool "ALAC"
+        default 1
+        help
+            Include alac library for alac decoding.			
+	   
+    endmenu
+	menu "Audio Output"
+		choice OUTPUT_TYPE
+	        prompt "Output Type"
+	        default DACAUDIO
+	        help
+	            Type of output for squeezelite to send audio to
+	        config DACAUDIO
+	            bool "DAC over I2S"
+	        config BTAUDIO
+	            bool "Bluetooth A2DP"
+	    endchoice
+	    
+	    config A2DP_SINK_NAME
+	        string "Name of Bluetooth A2DP device"
+	        depends on BTAUDIO
+	        default "SMSL BT4.2"
+	        help
+	            This is the name of the bluetooth speaker that Squeezelite will try connecting to.
+	   
+	    config A2DP_DEV_NAME
+	        string "Name of Squeezelite device to use when connecting to A2DP device"
+	        depends on BTAUDIO
+	        default "Squeezelite"
+	        help
+	            This is the name of the device that the Bluetooth speaker will see when it is connected to.
+	endmenu
 
 endmenu

@@ -270,7 +270,11 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#if POSIX
+#include <sys/poll.h>
+#else
 #include <poll.h>
+#endif
 #if !LINKALL
 #include <dlfcn.h>
 #endif
