@@ -77,17 +77,40 @@
 #else
 #error unknown target
 #endif
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 
-#if defined(DACAUDIO)
-#undef DACAUDIO
+
+#define ALSA 0
+#define PORTAUDIO 0
+
+#if defined( CONFIG_DACAUDIO)
+#if CONFIG_DACAUDIO
 #define DACAUDIO  1
-#elif LINUX && !defined(PORTAUDIO)
+#define BTAUDIO 0
+#endif
+
+#elif defined( CONFIG_BTAUDIO)
+#if CONFIG_BTAUDIO
+#define DACAUDIO  0
+#define BTAUDIO 1
+#endif
+
+#else // IF DACAUDIO OR BTAUDIO
+
+#pragma message("PORTAUDIO or ALSA Selected")
+
+#if LINUX && !defined(PORTAUDIO)
 #define ALSA      1
 #define PORTAUDIO 0
 #else
 #define ALSA      0
 #define PORTAUDIO 1
 #endif
+
+#endif
+
 
 #if !defined(LOOPBACK)
 #if SUN
@@ -237,9 +260,15 @@
 #endif // !LINKALL
 
 // config options
+#if CONFIG_SPIRAM_SUPPORT
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
 #define OUTPUTBUF_SIZE_CROSSFADE (OUTPUTBUF_SIZE * 12 / 10)
+#else
+#define STREAMBUF_SIZE (2 * 1024)
+#define OUTPUTBUF_SIZE (44100 * 8 * 0.1)
+#define OUTPUTBUF_SIZE_CROSSFADE (OUTPUTBUF_SIZE * 2 )
+#endif
 
 #define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080
 
@@ -270,7 +299,11 @@
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/socket.h>
+#if POSIX
+#include <sys/poll.h>
+#else
 #include <poll.h>
+#endif
 #if !LINKALL
 #include <dlfcn.h>
 #endif
@@ -713,6 +746,12 @@ void _pa_open(void);
 void set_volume(unsigned left, unsigned right);
 void output_init_dac(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_dac(void);
+#endif
+// output_dac.c
+#if BTAUDIO
+void set_volume(unsigned left, unsigned right);
+void output_init_bt(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_close_bt(void);
 #endif
 
 // output_stdout.c

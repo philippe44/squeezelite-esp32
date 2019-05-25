@@ -54,6 +54,7 @@ static bool running = true;
 #endif
 
 static void *decode_thread() {
+	
 
 	while (running) {
 		size_t bytes, space, min_space;
@@ -167,18 +168,21 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_ff("wma"));
 #endif
 */
-	if (!strstr(exclude_codecs, "alac") && (!include_codecs || (order_codecs = strstr(include_codecs, "alac"))))
+
+  if (!strstr(exclude_codecs, "alac") && (!include_codecs || (order_codecs = strstr(include_codecs, "alac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_alac());
 
 #ifndef NO_FAAD
 	if (!strstr(exclude_codecs, "aac")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "aac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_faad());
 #endif
-	if (!strstr(exclude_codecs, "ogg")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ogg"))))
+
+  if (!strstr(exclude_codecs, "ogg")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ogg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_vorbis());
 
 	if (!strstr(exclude_codecs, "flac") && (!include_codecs || (order_codecs = strstr(include_codecs, "flac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_flac());
+#endif
 
 	if (!strstr(exclude_codecs, "pcm")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "pcm"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_pcm());
@@ -187,6 +191,7 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mad")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mad"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mad());
+
 /*		
 	else if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mpg")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mpg"))))

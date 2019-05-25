@@ -20,7 +20,7 @@
  */
 
 #include "squeezelite.h"
-
+#if CONFIG_INCLUDE_MAD
 #include <mad.h>
 
 #define MAD_DELAY 529
@@ -414,3 +414,4 @@ struct codec *register_mad(void) {
 	LOG_INFO("using mad to decode mp3");
 	return &ret;
 }
+#endif
