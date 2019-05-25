@@ -518,7 +518,7 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 
    	UNLOCK;
 
-   	frames_wanted = len * bytes_per_frame;
+   	frames_wanted = len / bytes_per_frame;
    	ret = len;
 
     	LOCK;
