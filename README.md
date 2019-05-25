@@ -13,12 +13,10 @@
 	- set SPIRAM_MALLOC_ALWAYSINTERNAL to 2048 as it consumes a lot of 8K blocks and uses all internal memory - when no memoru, WiFI chip fails
  - set IDF_PATH=/home/esp-idf
  - set ESPPORT=COM9
- - ~~change <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)~~
+ - <esp-idf>\components\partition_table\partitions_singleapp.csv to 2M instead of 1M (or more)
  - sdkconfig.defaults now has configuration options set to load a local partitions.csv file that was setup with 2M size
  - Make sure you validate the flash's size in serial flash config (for example set to 16M)
- - ~~change main stack size to 8000 as well (for app_main which is slimproto)~~
  - sdkconfig.defaults has main stack size set to 8000
- - ~~use old "make" environment no CMake~~
  - Other options are available through menuconfig. Ideally, build should be reconfigured or at least compared with sdkconfig.default
  
 # Supporting Bluetooth a2dp output
@@ -26,7 +24,6 @@
 - Output types are A2DP or DAC over I2S
 - When A2DP is chosen, the audio device name has to be specified here
 
-  
 # Wifi SCAN Example
 
 This example shows how to use scan of ESP32.
