@@ -28,7 +28,11 @@
 // tremor's OggVorbis_File struct is normally smaller so this is ok, but padding added to malloc in case it is bigger
 #define OV_EXCLUDE_STATIC_CALLBACKS
 
+#ifdef TREMOR_ONLY
+#include <ivorbisfile.h>
+#else
 #include <vorbis/vorbisfile.h>
+#endif
 
 struct vorbis {
 	OggVorbis_File *vf;
@@ -183,7 +187,9 @@ static decode_state vorbis_decode(void) {
 	);
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
-#if 0	
+#ifdef TREMOR_ONLY	
+	n = OV(v, read, v->vf, (char *)write_buf, bytes, &s);
+#else
 	if (!TREMOR(v)) {
 #if SL_LITTLE_ENDIAN
 		n = OV(v, read, v->vf, (char *)write_buf, bytes, 0, 2, 1, &s);
@@ -196,7 +202,6 @@ static decode_state vorbis_decode(void) {
 #endif
 	}
 #endif	
-	n = OV(v, read, v->vf, (char *)write_buf, bytes, &s);
 	
 	if (n > 0) {
 
@@ -315,8 +320,8 @@ struct codec *register_vorbis(void) {
 	static struct codec ret = {
 		'o',          // id
 		"ogg",        // types
-		4096,         // min read
-		40960,        // min space
+		2048,         // min read
+		20480,        // min space
 		vorbis_open,  // open
 		vorbis_close, // close
 		vorbis_decode,// decode
