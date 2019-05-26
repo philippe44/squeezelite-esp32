@@ -45,8 +45,13 @@ static int bytes_per_frame;
 static int _bt_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
 
-void set_volume(unsigned left, unsigned right) {}
-
+void set_volume(unsigned left, unsigned right) {
+	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+	LOCK;
+	output.gainL = left;
+	output.gainR = right;
+	UNLOCK;
+}
 
 /* event for handler "bt_av_hdl_stack_up */
 enum {
@@ -198,7 +203,6 @@ void output_init_dac(log_level level, unsigned output_buf_size, char *params, un
  * Bluetooth audio source init Start
  */
 
-
 	output_init_common(level, "-", output_buf_size, rates, idle);
 
 //#if LINUX || OSX || FREEBSD || POSIX
@@ -224,11 +228,9 @@ void output_close_dac(void) {
 
 	free(buf);
 
-
-
 	output_close_common();
 }
-static u8_t *optr;
+
 static int _bt_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
 
@@ -492,17 +494,26 @@ static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 
 static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 {
-
-     int32_t ret = 0;
-	frames_t frames=0;
-	frames_t frames_wanted = 0;
-
+	frames_t frames;
+	int i;
+	s16_t *optr = (s16_t*) data;
+	s32_t *iptr = (s32_t*) buf;
+	
     if (len < 0 || data == NULL) {
         return 0;
     }
-    optr = (u8_t *)data;
-
+    
    	LOCK;
+	
+/* TODO
+	Normally, we would want BT to not call us back unless we have not in BUFFERING state. 
+	That requires BT to not start until we are > OUTPUT_BUFFER
+	// come back later, we are buffering (or stopped, need to handle that case ...) but we don't want silence 
+	if (output.state <= OUTPUT_BUFFER) {
+		UNLOCK;
+		return 0;
+	}		
+*/	
 
    	switch (output.format) {
    	case S32_LE:
@@ -516,36 +527,23 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
    		break;
    	}
 
-   	UNLOCK;
-
-   	frames_wanted = len / bytes_per_frame;
-   	ret = len;
-
-    	LOCK;
-
-
-    	output.device_frames = 0;
-    	output.updated = gettime_ms();
-    	output.frames_played_dmp = output.frames_played;
-
-    	do {
-    		frames = _output_frames(frames_wanted);
-    		frames_wanted -= frames;
-    	} while (frames_wanted > 0 && frames != 0);
-
-    	if (frames_wanted > 0) {
-    		LOG_DEBUG("pad with silence");
-    		memset(optr, 0, frames_wanted * bytes_per_frame);
-    	}
-
-    	if (output.state == OUTPUT_OFF) {
-    		LOG_INFO("output off");
-    		ret = 0;
-    	}
-
-    	UNLOCK;
-
-    	return ret;
+	// TODO update with proper bytes_per_frame handling
+   	frames = len / 4;
+   	output.device_frames = 0;
+   	output.updated = gettime_ms();
+   	output.frames_played_dmp = output.frames_played;
+  	frames = _output_frames(frames);
+	
+	UNLOCK;
+	
+	for (i = 0; i < frames*2; i++) {
+		*optr++ = *iptr++ >> 16;
+		*optr++ = *iptr++ >> 16;
+	}
+	
+	buffill = 0;
+   
+	return frames * 4;
 }
 
 static void a2d_app_heart_beat(void *arg)
