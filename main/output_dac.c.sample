@@ -37,7 +37,7 @@ void set_volume(unsigned left, unsigned right) {
 	UNLOCK;
 }
 
-void output_init_dac(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
+void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
 
 	LOG_INFO("init output DAC");
@@ -58,13 +58,13 @@ void output_init_dac(log_level level, unsigned output_buf_size, char *params, un
 		if (!strcmp(params, "24")) output.format = S24_3LE;
 		if (!strcmp(params, "16")) output.format = S16_LE;
 	}
-
+	
 	// ensure output rate is specified to avoid test open
 	if (!rates[0]) {
 		rates[0] = 44100;
 	}
 
-	output_init_common(level, "-", output_buf_size, rates, idle);
+	output_init_common(level, device, output_buf_size, rates, idle);
 
 #if LINUX || OSX || FREEBSD || POSIX
 	pthread_attr_t attr;
@@ -119,7 +119,7 @@ static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 #endif		
 
 	} else {
-
+	
 		obuf = silencebuf;
 #if !REPACK
 		IF_DSD(
@@ -143,7 +143,7 @@ static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 static void *output_thread() {
 	// buffer to hold output data so we can block on writing outside of output lock, allocated on init
 	u8_t *obuf = malloc(FRAME_BLOCK * BYTES_PER_FRAME);
-	unsigned frames = 0;
+	int frames = 0;
 
 #if REPACK
 	LOCK;
@@ -161,7 +161,9 @@ static void *output_thread() {
 	}
 
 	UNLOCK;
-#endif	
+#else	
+	bytes_per_frame = BYTES_PER_FRAME;
+#endif
 
 	while (running) {
 
@@ -183,8 +185,13 @@ static void *output_thread() {
 		UNLOCK;
 
 		if (frames) {
-			// do something with some of these frames...
-			usleep((frames * 1000 * 1000) / output.current_sample_rate);			
+			if (output.device[0] == '-' && memcmp(optr, silencebuf, frames * bytes_per_frame)) {
+				fwrite(obuf, bytes_per_frame, frames, stdout);
+				LOG_INFO("writing frames %d", frames);
+			} else {	
+				// do something with some of these frames...
+				usleep((frames * 1000 * 1000) / output.current_sample_rate);			
+			}	
 			frames = 0;
 		} else {
 			usleep((FRAME_BLOCK * 1000 * 1000) / output.current_sample_rate);
@@ -194,4 +201,11 @@ static void *output_thread() {
 
 	return 0;
 }
+
+bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
+	unsigned _rates[] = { 96000, 88200, 48000, 44100, 32000, 0 };	
+	memcpy(rates, _rates, sizeof(_rates));
+	return true;
+}
+
 

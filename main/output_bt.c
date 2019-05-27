@@ -122,7 +122,7 @@ static char *bda2str(esp_bd_addr_t bda, char *str, size_t size)
 }
 
 
-void output_init_dac(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
+void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
 
 	LOG_INFO("init output BT");
@@ -188,8 +188,8 @@ void output_init_dac(log_level level, unsigned output_buf_size, char *params, un
 /*
  * Bluetooth audio source init Start
  */
-
-	output_init_common(level, "-", output_buf_size, rates, idle);
+	device = "BT";
+	output_init_common(level, device, output_buf_size, rates, idle);
 
 //#if LINUX || OSX || FREEBSD || POSIX
 //	pthread_attr_t attr;
@@ -529,6 +529,17 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	}
 	
 	return frames * 4;
+}
+
+bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
+	memset(rates, 0, MAX_SUPPORTED_SAMPLERATES * sizeof(unsigned));
+	if (!strcmp(device, "BT")) {
+		rates[0] = 44100;
+	} else {
+		unsigned _rates[] = { 96000, 88200, 48000, 44100, 32000, 0 };	
+		memcpy(rates, _rates, sizeof(_rates));
+	}
+	return true;
 }
 
 static void a2d_app_heart_beat(void *arg)
