@@ -23,6 +23,18 @@
 
 #include <alac_wrapper.h>
 
+#if BYTES_PER_FRAME == 4		
+#define ALIGN8(n) 	(n << 8)		
+#define ALIGN16(n) 	(n)
+#define ALIGN24(n)	(n >> 8) 
+#define ALIGN32(n)	(n >> 16)
+#else
+#define ALIGN8(n) 	(n << 24)		
+#define ALIGN16(n) 	(n << 16)
+#define ALIGN24(n)	(n << 8) 
+#define ALIGN32(n)	(n)
+#endif
+
 #define BLOCK_SIZE (4096 * BYTES_PER_FRAME)
 #define MIN_READ    BLOCK_SIZE
 #define MIN_SPACE  (MIN_READ * 4)
@@ -433,15 +445,15 @@ static decode_state alac_decode(void) {
 
 	while (frames > 0) {
 		size_t f, count;
-		s32_t *optr;
+		ISAMPLE_T *optr;
 
 		IF_DIRECT(
 			f = min(frames, _buf_cont_write(outputbuf) / BYTES_PER_FRAME);
-			optr = (s32_t *)outputbuf->writep;
+			optr = (ISAMPLE_T *)outputbuf->writep;
 		);
 		IF_PROCESS(
 			f = min(frames, process.max_in_frames - process.in_frames);
-			optr = (s32_t *)((u8_t *) process.inbuf + process.in_frames * BYTES_PER_FRAME);
+			optr = (ISAMPLE_T *)((u8_t *) process.inbuf + process.in_frames * BYTES_PER_FRAME);
 		);
 
 		f = min(f, frames);
@@ -449,32 +461,31 @@ static decode_state alac_decode(void) {
 
 		if (l->sample_size == 8) {
 			while (count--) {
-				*optr++ = (*(u32_t*) iptr) << 24;
-				*optr++ = (*(u32_t*) (iptr + 1)) << 24;
-				iptr += 2;
+				*optr++ = ALIGN8(*iptr++);
+				*optr++ = ALIGN8(*iptr++);
 			}
 		} else if (l->sample_size == 16) {
+			u16_t *_iptr = (u16_t*) iptr;
 			while (count--) {
-				*optr++ = (*(u32_t*) iptr) << 16;
-				*optr++ = (*(u32_t*) (iptr + 2)) << 16;
-				iptr += 4;
+				*optr++ = ALIGN16(*_iptr++);
+				*optr++ = ALIGN16(*_iptr++);
 			}
 		} else if (l->sample_size == 24) {
 			while (count--) {
-				*optr++ = (*(u32_t*) iptr) << 8;
-				*optr++ = (*(u32_t*) (iptr + 3)) << 8;
+				*optr++ = ALIGN24(*(u32_t*) iptr);
+				*optr++ = ALIGN24(*(u32_t*) (iptr + 3));
 				iptr += 6;
 			}
 		} else if (l->sample_size == 32) {
+			u32_t *_iptr = (u32_t*) iptr;
 			while (count--) {
-				*optr++ = (*(u32_t*) iptr);
-				*optr++ = (*(u32_t*) (iptr + 4));
-				iptr += 8;
+				*optr++ = ALIGN32(*_iptr++);
+				*optr++ = ALIGN32(*_iptr++);
 			}
 		} else {
 			LOG_ERROR("unsupported bits per sample: %u", l->sample_size);
 		}
-
+		
 		frames -= f;
 
 		IF_DIRECT(

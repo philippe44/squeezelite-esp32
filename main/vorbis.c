@@ -21,6 +21,12 @@
 
 #include "squeezelite.h"
 
+#if BYTES_PER_FRAME == 4		
+#define ALIGN(n) 	(n)
+#else
+#define ALIGN(n) 	(n << 16)		
+#endif
+
 // automatically select between floating point (preferred) and fixed point libraries:
 // NOTE: works with Tremor version here: http://svn.xiph.org/trunk/Tremor, not vorbisidec.1.0.2 currently in ubuntu
 
@@ -207,26 +213,29 @@ static decode_state vorbis_decode(void) {
 
 		frames_t count;
 		s16_t *iptr;
-		s32_t *optr;
+		ISAMPLE_T *optr;
 
 		frames = n / 2 / channels;
 		count = frames * channels;
 
-		// work backward to unpack samples to 4 bytes per sample
 		iptr = (s16_t *)write_buf + count;
-		optr = (s32_t *)write_buf + frames * 2;
+		optr = (ISAMPLE_T *)write_buf + frames * 2;
 
 		if (channels == 2) {
+#if BYTES_PER_FRAME == 4			
+			memcpy(optr, iptr, count * BYTES_PER_FRAME / 2);
+#else
 			while (count--) {
 				*--optr = *--iptr << 16;
 			}
+#endif			
 		} else if (channels == 1) {
 			while (count--) {
-				*--optr = *--iptr << 16;
-				*--optr = *iptr   << 16;
+				*--optr = ALIGN(*--iptr);
+				*--optr = ALIGN(*iptr);
 			}
 		}
-
+		
 		IF_DIRECT(
 			_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
 		);

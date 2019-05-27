@@ -29,6 +29,7 @@ static bool running = true;
 
 extern struct outputstate output;
 extern struct buffer *outputbuf;
+extern struct buffer *streambuf;
 
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
@@ -36,20 +37,19 @@ extern struct buffer *outputbuf;
 #define FRAME_BLOCK MAX_SILENCE_FRAMES
 
 extern u8_t *silencebuf;
+static u8_t *optr;
 
-// buffer to hold output data so we can block on writing outside of output lock, allocated on init
-static u8_t *buf;
-static unsigned buffill;
-static int bytes_per_frame;
-
-static int _bt_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
-								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
 
 void set_volume(unsigned left, unsigned right) {
 	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
 	output.gainL = left;
 	output.gainR = right;
+	// TODO
+	output.gainL = FIXED_ONE;
+	output.gainR = FIXED_ONE;
 	UNLOCK;
 }
 
@@ -127,25 +127,11 @@ void output_init_dac(log_level level, unsigned output_buf_size, char *params, un
 
 	LOG_INFO("init output BT");
 
-	buf = malloc(FRAME_BLOCK * BYTES_PER_FRAME);
-	if (!buf) {
-		LOG_ERROR("unable to malloc buf");
-		return;
-	}
-	buffill = 0;
-
 	memset(&output, 0, sizeof(output));
 
-	output.format = S32_LE;
 	output.start_frames = FRAME_BLOCK * 2;
-	output.write_cb = &_bt_write_frames;
+	output.write_cb = &_write_frames;
 	output.rate_delay = rate_delay;
-
-	if (params) {
-		if (!strcmp(params, "32"))	output.format = S32_LE;
-		if (!strcmp(params, "24")) output.format = S24_3LE;
-		if (!strcmp(params, "16")) output.format = S16_LE;
-	}
 
 	// ensure output rate is specified to avoid test open
 	if (!rates[0]) {
@@ -226,32 +212,46 @@ void output_close_dac(void) {
 	running = false;
 	UNLOCK;
 
-	free(buf);
-
 	output_close_common();
 }
 
-static int _bt_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
-								s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
-
-	u8_t *obuf;
-
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
+						 s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr) {
+	
 	if (!silence) {
-
+		
+		/* TODO need 16 bit fix 
 		if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && *cross_ptr) {
 			_apply_cross(outputbuf, out_frames, cross_gain_in, cross_gain_out, cross_ptr);
 		}
+		
+		if (gainL != FIXED_ONE || gainR!= FIXED_ONE) {
+			_apply_gain(outputbuf, out_frames, gainL, gainR);
+		}
+		*/
 
-		obuf = outputbuf->readp;
+#if BYTES_PER_FRAME == 4		
+		memcpy(optr, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+#else
+	{	
+		frames_t count = out_frames;
+		s32_t *_iptr = (s32_t*) outputbuf->readp;
+		s16_t *_optr = (s32_t*) optr;
+		while (count--) {
+			*_optr++ = *_iptr++ >> 16;
+			*_optr++ = *_iptr++ >> 16;
+		}
+	}	
+#endif	
 
 	} else {
 
-		obuf = silencebuf;
+		u8_t *buf = silencebuf;
+
+		memcpy(optr, buf, out_frames * 4);
 	}
-
-	_scale_and_pack_frames(buf + buffill * bytes_per_frame, (s32_t *)(void *)obuf, out_frames, gainL, gainR, output.format);
-
-	buffill += out_frames;
+	
+	optr += out_frames * 4;
 
 	return (int)out_frames;
 }
@@ -495,18 +495,16 @@ static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 {
 	frames_t frames;
-	int i;
-	s16_t *optr = (s16_t*) data;
-	s32_t *iptr = (s32_t*) buf;
+	static int count = 0;
 	
-    if (len < 0 || data == NULL) {
+	if (len < 0 || data == NULL) {
         return 0;
     }
     
    	LOCK;
 	
 /* TODO
-	Normally, we would want BT to not call us back unless we have not in BUFFERING state. 
+	Normally, we would want BT to not call us back unless we are not in BUFFERING state. 
 	That requires BT to not start until we are > OUTPUT_BUFFER
 	// come back later, we are buffering (or stopped, need to handle that case ...) but we don't want silence 
 	if (output.state <= OUTPUT_BUFFER) {
@@ -515,34 +513,21 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	}		
 */	
 
-   	switch (output.format) {
-   	case S32_LE:
-   		bytes_per_frame = 4 * 2; break;
-   	case S24_3LE:
-   		bytes_per_frame = 3 * 2; break;
-   	case S16_LE:
-   		bytes_per_frame = 2 * 2; break;
-   	default:
-   		bytes_per_frame = 4 * 2; break;
-   		break;
-   	}
-
-	// TODO update with proper bytes_per_frame handling
    	frames = len / 4;
    	output.device_frames = 0;
    	output.updated = gettime_ms();
    	output.frames_played_dmp = output.frames_played;
+	if (!output.threshold) output.threshold = 20;
+
+	optr = data;
   	frames = _output_frames(frames);
 	
 	UNLOCK;
 	
-	for (i = 0; i < frames*2; i++) {
-		*optr++ = *iptr++ >> 16;
-		*optr++ = *iptr++ >> 16;
+	if (!(count++ & 0x1ff)) {
+		LOG_INFO("frames %d (count:%d) (out:%d, stream:%d)", frames, count, _buf_used(outputbuf), _buf_used(streambuf));
 	}
 	
-	buffill = 0;
-   
 	return frames * 4;
 }
 

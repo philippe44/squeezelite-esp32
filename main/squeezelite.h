@@ -444,7 +444,15 @@ void _wake_create(event_event*);
 
 #define FIXED_ONE 0x10000
 
+#ifndef BYTES_PER_FRAME
 #define BYTES_PER_FRAME 8
+#endif
+
+#if BYTES_PER_FRAME == 8
+#define ISAMPLE_T 		s32_t
+#else
+#define ISAMPLE_T		s16_t
+#endif
 
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -643,7 +651,7 @@ struct outputstate {
 	unsigned latency;
 	int pa_hostapi_option;
 #endif
-	int (* write_cb)(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr);
+	int (* write_cb)(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
 	unsigned start_frames;
 	unsigned frames_played;
 	unsigned frames_played_dmp;// frames played at the point delay is measured
