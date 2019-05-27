@@ -515,7 +515,6 @@ static decode_state faad_decode(void) {
 #if BYTES_PER_FRAME == 4			
 			memcpy(optr, iptr, count * BYTES_PER_FRAME);
 			iptr += count * 2;
-			optr += count * 2;
 #else 			
 			while (count--) {
 				*optr++ = *iptr++ << 8;

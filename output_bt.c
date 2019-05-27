@@ -236,7 +236,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 	{	
 		frames_t count = out_frames;
 		s32_t *_iptr = (s32_t*) outputbuf->readp;
-		s16_t *_optr = (s32_t*) optr;
+		s16_t *_optr = (s16_t*) optr;
 		while (count--) {
 			*_optr++ = *_iptr++ >> 16;
 			*_optr++ = *_iptr++ >> 16;
