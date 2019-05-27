@@ -23,8 +23,14 @@
 
 #include "squeezelite.h"
 
+#if BYTES_PER_FRAM == 4
+#define MAX_VAL16 0x7fffffffLL
 #define MAX_SCALESAMPLE 0x7fffffffffffLL
 #define MIN_SCALESAMPLE -MAX_SCALESAMPLE
+#else
+#define MAX_SCALESAMPLE 0x7fffffffffffLL
+#define MIN_SCALESAMPLE -MAX_SCALESAMPLE
+#endif
 
 // inlining these on windows prevents them being linkable...
 #if !WIN
@@ -338,11 +344,11 @@ void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_
 #if !WIN
 inline 
 #endif
-void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gain_in, s32_t cross_gain_out, s32_t **cross_ptr) {
-	s32_t *ptr = (s32_t *)(void *)outputbuf->readp;
+void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr) {
+	ISAMPLE_T *ptr = (ISAMPLE_T *)(void *)outputbuf->readp;
 	frames_t count = out_frames * 2;
 	while (count--) {
-		if (*cross_ptr > (s32_t *)outputbuf->wrap) {
+		if (*cross_ptr > (ISAMPLE_T *)outputbuf->wrap) {
 			*cross_ptr -= outputbuf->size / BYTES_PER_FRAME * 2;
 		}
 		*ptr = gain(cross_gain_out, *ptr) + gain(cross_gain_in, **cross_ptr);
@@ -354,8 +360,8 @@ void _apply_cross(struct buffer *outputbuf, frames_t out_frames, s32_t cross_gai
 inline 
 #endif
 void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t gainR) {
-	s32_t *ptrL = (s32_t *)(void *)outputbuf->readp;
-	s32_t *ptrR = (s32_t *)(void *)outputbuf->readp + 1;
+	ISAMPLE_T *ptrL = (ISAMPLE_T *)(void *)outputbuf->readp;
+	ISAMPLE_T *ptrR = (ISAMPLE_T *)(void *)outputbuf->readp + 1;
 	while (count--) {
 		*ptrL = gain(gainL, *ptrL);
 		*ptrR = gain(gainR, *ptrR);
@@ -363,3 +369,4 @@ void _apply_gain(struct buffer *outputbuf, frames_t count, s32_t gainL, s32_t ga
 		ptrR += 2;
 	}
 }
+

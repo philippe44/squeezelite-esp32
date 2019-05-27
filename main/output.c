@@ -48,7 +48,7 @@ frames_t _output_frames(frames_t avail) {
 	frames_t frames, size;
 	bool silence;
 	
-	s32_t cross_gain_in = 0, cross_gain_out = 0; s32_t *cross_ptr = NULL;
+	s32_t cross_gain_in = 0, cross_gain_out = 0; ISAMPLE_T *cross_ptr = NULL;
 	
 	s32_t gainL = output.current_replay_gain ? gain(output.gainL, output.current_replay_gain) : output.gainL;
 	s32_t gainR = output.current_replay_gain ? gain(output.gainR, output.current_replay_gain) : output.gainR;
@@ -242,7 +242,7 @@ frames_t _output_frames(frames_t avail) {
 							gainL = output.gainL;
 							gainR = output.gainR;
 							if (output.invert) { gainL = -gainL; gainR = -gainR; }
-							cross_ptr = (s32_t *)(output.fade_end + cur_f * BYTES_PER_FRAME);
+							cross_ptr = (ISAMPLE_T *)(output.fade_end + cur_f * BYTES_PER_FRAME);
 						} else {
 							LOG_INFO("unable to continue crossfade - too few samples");
 							output.fade = FADE_INACTIVE;
