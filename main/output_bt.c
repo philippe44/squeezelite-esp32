@@ -496,6 +496,8 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 {
 	frames_t frames;
 	static int count = 0;
+	static unsigned min_o = -1, max_o = 0, min_s = -1, max_s = 0;
+	unsigned o, s;
 	
 	if (len < 0 || data == NULL) {
         return 0;
@@ -517,15 +519,25 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
    	output.device_frames = 0;
    	output.updated = gettime_ms();
    	output.frames_played_dmp = output.frames_played;
-	if (!output.threshold) output.threshold = 20;
+	if (output.threshold < 20) output.threshold = 20;
 
 	optr = data;
   	frames = _output_frames(frames);
 	
 	UNLOCK;
 	
+	o = _buf_used(outputbuf);
+	if (o < min_o) min_o = o;
+	if (o > max_o) max_o = o;
+	
+	s = _buf_used(streambuf);
+	if (s < min_s) min_s = s;
+	if (s > max_s) max_s = s;
+	
 	if (!(count++ & 0x1ff)) {
-		LOG_INFO("frames %d (count:%d) (out:%d, stream:%d)", frames, count, _buf_used(outputbuf), _buf_used(streambuf));
+		LOG_INFO("frames %d (count:%d) (out:%d/%d/%d, stream:%d/%d/%d)", frames, count, max_o, min_o, o, max_s, min_s, s);
+		min_o = min_s = -1;
+		max_o = max_s = -0;
 	}
 	
 	return frames * 4;

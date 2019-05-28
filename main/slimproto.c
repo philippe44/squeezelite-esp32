@@ -274,7 +274,7 @@ static void process_strm(u8_t *pkt, int len) {
 	struct strm_packet *strm = (struct strm_packet *)pkt;
 
 	LOG_DEBUG("strm command %c", strm->command);
-
+	
 	switch(strm->command) {
 	case 't':
 		sendSTAT("STMt", strm->replay_gain); // STMt replay_gain is no longer used to track latency, but support it

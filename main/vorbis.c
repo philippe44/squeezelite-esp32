@@ -99,12 +99,16 @@ extern int ov_read_tremor(); // needed to enable compilation, not linked
 static size_t _read_cb(void *ptr, size_t size, size_t nmemb, void *datasource) {
 	size_t bytes;
 
+	LOCK_S;
+	
 	bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 	bytes = min(bytes, size * nmemb);
 
 	memcpy(ptr, streambuf->readp, bytes);
 	_buf_inc_readp(streambuf, bytes);
-
+	
+	UNLOCK_S;
+	
 	return bytes / size;
 }
 
@@ -115,28 +119,19 @@ static long _tell_cb(void *datasource) { return 0; }
 
 static decode_state vorbis_decode(void) {
 	static int channels;
-	bool end;
 	frames_t frames;
 	int bytes, s, n;
 	u8_t *write_buf;
 
 	LOCK_S;
-	LOCK_O_direct;
-	end = (stream.state <= DISCONNECT);
-
-	IF_DIRECT(
-		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
-	);
-	IF_PROCESS(
-		frames = process.max_in_frames;
-	);
-
-	if (!frames && end) {
-		UNLOCK_O_direct;
+	
+	if (stream.state <= DISCONNECT && !_buf_used(streambuf)) {
 		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
-
+	
+	UNLOCK_S;
+	
 	if (decode.new_stream) {
 		ov_callbacks cbs;
 		int err;
@@ -152,45 +147,41 @@ static decode_state vorbis_decode(void) {
 
 		if ((err = OV(v, open_callbacks, streambuf, v->vf, NULL, 0, cbs)) < 0) {
 			LOG_WARN("open_callbacks error: %d", err);
-			UNLOCK_O_direct;
-			UNLOCK_S;
 			return DECODE_COMPLETE;
 		}
+		
 		v->opened = true;
-
 		info = OV(v, info, v->vf, -1);
 				
 		LOG_INFO("setting track_start");
-		LOCK_O_not_direct;
+		LOCK_O;
 		output.next_sample_rate = decode_newstream(info->rate, output.supported_rates); 
 		IF_DSD(	output.next_fmt = PCM; )
 		output.track_start = outputbuf->writep;
 		if (output.fade_mode) _checkfade(true);
 		decode.new_stream = false;
-		UNLOCK_O_not_direct;
-
-		IF_PROCESS(
-			frames = process.max_in_frames;
-		);
+		UNLOCK_O;
 
 		channels = info->channels;
 
 		if (channels > 2) {
 			LOG_WARN("too many channels: %d", channels);
-			UNLOCK_O_direct;
-			UNLOCK_S;
 			return DECODE_ERROR;
 		}
 	}
-
-	bytes = frames * 2 * channels; // samples returned are 16 bits
-
+	
+	LOCK_O_direct;
+	
 	IF_DIRECT(
+		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
 		write_buf = outputbuf->writep;
 	);
 	IF_PROCESS(
+		frames = process.max_in_frames;
 		write_buf = process.inbuf;
 	);
+	
+	bytes = frames * 2 * channels; // samples returned are 16 bits
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
 #ifdef TREMOR_ONLY	
@@ -208,9 +199,8 @@ static decode_state vorbis_decode(void) {
 #endif
 	}
 #endif	
-	
+		
 	if (n > 0) {
-
 		frames_t count;
 		s16_t *iptr;
 		ISAMPLE_T *optr;
@@ -249,7 +239,6 @@ static decode_state vorbis_decode(void) {
 
 		LOG_INFO("end of stream");
 		UNLOCK_O_direct;
-		UNLOCK_S;
 		return DECODE_COMPLETE;
 
 	} else if (n == OV_HOLE) {
@@ -261,12 +250,10 @@ static decode_state vorbis_decode(void) {
 
 		LOG_INFO("ov_read error: %d", n);
 		UNLOCK_O_direct;
-		UNLOCK_S;
 		return DECODE_COMPLETE;
 	}
 
 	UNLOCK_O_direct;
-	UNLOCK_S;
 
 	return DECODE_RUNNING;
 }

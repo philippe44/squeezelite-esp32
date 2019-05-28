@@ -59,7 +59,7 @@ static void *decode_thread() {
 		size_t bytes, space, min_space;
 		bool toend;
 		bool ran = false;
-
+		
 		LOCK_S;
 		bytes = _buf_used(streambuf);
 		toend = (stream.state <= DISCONNECT);
@@ -69,7 +69,7 @@ static void *decode_thread() {
 		UNLOCK_O;
 
 		LOCK_D;
-
+		
 		if (decode.state == DECODE_RUNNING && codec) {
 		
 			LOG_SDEBUG("streambuf bytes: %u outputbuf space: %u", bytes, space);

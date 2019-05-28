@@ -133,10 +133,9 @@ void app_main()
 		"-d",
 		"output=" CONFIG_LOGGING_OUTPUT,
 		"-b",
-		"256:2000"
+		"500:2000"
 
 	};
-
 
 	// can't do strtok on FLASH strings
 	argv = malloc(sizeof(_argv));
