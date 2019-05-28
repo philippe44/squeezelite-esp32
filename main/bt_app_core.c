@@ -26,6 +26,8 @@ static log_level loglevel;
 
 static xQueueHandle s_bt_app_task_queue = NULL;
 static xTaskHandle s_bt_app_task_handle = NULL;
+
+
 void bt_set_log_level(log_level level){
 	loglevel = level;
 }
