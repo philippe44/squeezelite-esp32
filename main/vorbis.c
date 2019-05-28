@@ -21,6 +21,8 @@
 
 #include "squeezelite.h"
 
+#define MAX_FRAMES 4096
+
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
 #else
@@ -181,6 +183,10 @@ static decode_state vorbis_decode(void) {
 		write_buf = process.inbuf;
 	);
 	
+	// should be fine to unlock here. This is needed b/c other tasks need to tip intot the output buf
+	UNLOCK_O_direct;
+	
+	frames = min(frames, MAX_FRAMES);
 	bytes = frames * 2 * channels; // samples returned are 16 bits
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
@@ -199,7 +205,7 @@ static decode_state vorbis_decode(void) {
 #endif
 	}
 #endif	
-		
+
 	if (n > 0) {
 		frames_t count;
 		s16_t *iptr;
@@ -212,9 +218,7 @@ static decode_state vorbis_decode(void) {
 		optr = (ISAMPLE_T *)write_buf + frames * 2;
 
 		if (channels == 2) {
-#if BYTES_PER_FRAME == 4			
-			memcpy(optr, iptr, count * BYTES_PER_FRAME / 2);
-#else
+#if BYTES_PER_FRAME == 8
 			while (count--) {
 				*--optr = *--iptr << 16;
 			}
@@ -226,19 +230,20 @@ static decode_state vorbis_decode(void) {
 			}
 		}
 		
+		LOCK_O_direct;
 		IF_DIRECT(
 			_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
 		);
 		IF_PROCESS(
 			process.in_frames = frames;
 		);
+		UNLOCK_O_direct;
 
 		LOG_SDEBUG("wrote %u frames", frames);
 
 	} else if (n == 0) {
 
 		LOG_INFO("end of stream");
-		UNLOCK_O_direct;
 		return DECODE_COMPLETE;
 
 	} else if (n == OV_HOLE) {
@@ -249,11 +254,8 @@ static decode_state vorbis_decode(void) {
 	} else {
 
 		LOG_INFO("ov_read error: %d", n);
-		UNLOCK_O_direct;
 		return DECODE_COMPLETE;
 	}
-
-	UNLOCK_O_direct;
 
 	return DECODE_RUNNING;
 }
