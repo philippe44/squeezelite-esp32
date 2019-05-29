@@ -49,3 +49,4 @@ CONFIG_ESPTOOLPY_BAUD=2000000
 # Decreasing the delay here leads to a more responsive control of the playback.  
 # If debug logging set on output, this should be raised as it will generate a lot of noise in logs 
 CONFIG_A2DP_CONTROL_DELAY_MS=500
+CONFIG_A2DP_CONNECT_TIMEOUT_MS=1000

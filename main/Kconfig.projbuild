@@ -152,7 +152,13 @@ menu "Squeezelite-ESP32"
 	        depends on BTAUDIO
 	        default 500
 	        help
-	            Decreasing this will lead to a more responsive BT control, but might lead to noisy log files if debug is enabled.	            
+	            Decreasing this will lead to a more responsive BT control, but might lead to noisy log files if debug is enabled.
+	    config A2DP_CONNECT_TIMEOUT_MS
+	    	int "Time out duration when trying to connect to an A2DP audio sink"
+			depends on BTAUDIO
+	        default 1000
+	        help
+	            Increasing this value will give more chance for less stable connections to be established.	    		            
 	            
 	endmenu
 
