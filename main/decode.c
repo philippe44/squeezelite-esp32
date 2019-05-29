@@ -54,7 +54,7 @@ static bool running = true;
 #endif
 
 static void *decode_thread() {
-
+	
 	while (running) {
 		size_t bytes, space, min_space;
 		bool toend;

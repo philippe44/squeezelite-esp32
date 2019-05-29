@@ -21,7 +21,15 @@
 
 #include "squeezelite.h"
 
-#define MAX_FRAMES 4096
+/* 
+*  with some low-end CPU, the decode call takes a fair bit of time and if the outputbuf is locked during that
+*  period, the output_thread (or equivalent) will be locked although there is plenty of samples available.
+*  Normally, with PRIO_INHERIT, that thread should increase decoder priority and get the lock quickly but it
+*  seems that when the streambuf has plenty of data, the decode thread grabs the CPU to much, even it the output
+*  thread has a higher priority. Using an interim buffer where vorbis decoder writes the output is not great from
+*  an efficiency (one extra memory copy) point of view, but it allows the lock to not be kept for too long
+*/
+#define FRAME_BUF 2048
 
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
@@ -45,6 +53,9 @@
 struct vorbis {
 	OggVorbis_File *vf;
 	bool opened;
+#if FRAME_BUF	
+	u8_t *write_buf;
+#endif	
 #if !LINKALL
 	// vorbis symbols to be dynamically loaded - from either vorbisfile or vorbisidec (tremor) version of library
 	vorbis_info *(* ov_info)(OggVorbis_File *vf, int link);
@@ -172,21 +183,26 @@ static decode_state vorbis_decode(void) {
 		}
 	}
 	
+#if !FRAME_BUF		
 	LOCK_O_direct;
+#endif	
 	
 	IF_DIRECT(
 		frames = min(_buf_space(outputbuf), _buf_cont_write(outputbuf)) / BYTES_PER_FRAME;
+#if FRAME_BUF		
+		write_buf = v->write_buf;
+#else
 		write_buf = outputbuf->writep;
+#endif	
 	);
 	IF_PROCESS(
 		frames = process.max_in_frames;
 		write_buf = process.inbuf;
 	);
 	
-	// should be fine to unlock here. This is needed b/c other tasks need to tip intot the output buf
-	UNLOCK_O_direct;
-	
-	frames = min(frames, MAX_FRAMES);
+#if FRAME_BUF	
+	frames = min(frames, FRAME_BUF);
+#endif	
 	bytes = frames * 2 * channels; // samples returned are 16 bits
 
 	// write the decoded frames into outputbuf even though they are 16 bits per sample, then unpack them
@@ -206,6 +222,10 @@ static decode_state vorbis_decode(void) {
 	}
 #endif	
 
+#if FRAME_BUF
+	LOCK_O_direct;
+#endif	
+
 	if (n > 0) {
 		frames_t count;
 		s16_t *iptr;
@@ -218,7 +238,9 @@ static decode_state vorbis_decode(void) {
 		optr = (ISAMPLE_T *)write_buf + frames * 2;
 
 		if (channels == 2) {
-#if BYTES_PER_FRAME == 8
+#if BYTES_PER_FRAME == 4
+			memcpy(outputbuf->writep, write_buf, frames * BYTES_PER_FRAME);
+#else
 			while (count--) {
 				*--optr = *--iptr << 16;
 			}
@@ -230,20 +252,19 @@ static decode_state vorbis_decode(void) {
 			}
 		}
 		
-		LOCK_O_direct;
 		IF_DIRECT(
 			_buf_inc_writep(outputbuf, frames * BYTES_PER_FRAME);
 		);
 		IF_PROCESS(
 			process.in_frames = frames;
 		);
-		UNLOCK_O_direct;
 
 		LOG_SDEBUG("wrote %u frames", frames);
 
 	} else if (n == 0) {
 
 		LOG_INFO("end of stream");
+		UNLOCK_O_direct;
 		return DECODE_COMPLETE;
 
 	} else if (n == OV_HOLE) {
@@ -254,9 +275,11 @@ static decode_state vorbis_decode(void) {
 	} else {
 
 		LOG_INFO("ov_read error: %d", n);
+		UNLOCK_O_direct;
 		return DECODE_COMPLETE;
 	}
 
+	UNLOCK_O_direct;
 	return DECODE_RUNNING;
 }
 
@@ -264,6 +287,9 @@ static void vorbis_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	if (!v->vf) {
 		v->vf = malloc(sizeof(OggVorbis_File) + 128); // add some padding as struct size may be larger
 		memset(v->vf, 0, sizeof(OggVorbis_File) + 128);
+#if FRAME_BUF		
+		v->write_buf = malloc(FRAME_BUF * BYTES_PER_FRAME);
+#endif		
 	} else {
 		if (v->opened) {
 			OV(v, clear, v->vf);
@@ -278,6 +304,10 @@ static void vorbis_close(void) {
 		v->opened = false;
 	}
 	free(v->vf);
+#if FRAME_BUF	
+	free(v->write_buf);
+	v->write_buf = NULL;
+#endif	
 	v->vf = NULL;
 }
 

@@ -147,6 +147,13 @@ menu "Squeezelite-ESP32"
 	        default "Squeezelite"
 	        help
 	            This is the name of the device that the Bluetooth speaker will see when it is connected to.
+	    config A2DP_CONTROL_DELAY_MS
+	        int "Control loop delay. "
+	        depends on BTAUDIO
+	        default 500
+	        help
+	            Decreasing this will lead to a more responsive BT control, but might lead to noisy log files if debug is enabled.	            
+	            
 	endmenu
 
 endmenu
