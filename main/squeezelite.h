@@ -767,6 +767,7 @@ struct codec *register_mad(void);
 struct codec *register_mpg(void);
 struct codec *register_vorbis(void);
 struct codec *register_faad(void);
+struct codec *register_helixaac(void);
 struct codec *register_dsd(void);
 struct codec *register_alac(void);
 struct codec *register_ff(const char *codec);

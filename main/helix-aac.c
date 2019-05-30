@@ -3,6 +3,7 @@
  *
  *  (c) Adrian Smith 2012-2015, triode1@btinternet.com
  *      Ralph Irving 2015-2017, ralph_irving@hotmail.com
+ *		Philippe, philippe_44@outlook.com
  *  
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +22,10 @@
 
 #include "squeezelite.h"
 
-#include <neaacdec.h>
+#include <aacdec.h>
+
+// AAC_MAX_SAMPLES is the number of samples for one channel
+#define FRAME_BUF (AAC_MAX_NSAMPS*2)
 
 #if BYTES_PER_FRAME == 4		
 #define ALIGN(n) 	(n)
@@ -31,13 +35,16 @@
 
 #define WRAPBUF_LEN 2048
 
+static unsigned rates[] = { 96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350 };
+
 struct chunk_table {
 	u32_t sample, offset;
 };
 
-struct faad {
-	NeAACDecHandle hAac;
+struct helixaac {
+	HAACDecoder hAac;
 	u8_t type;
+	u8_t *write_buf;
 	// following used for mp4 only
 	u32_t consume;
 	u32_t pos;
@@ -49,20 +56,11 @@ struct faad {
 	u64_t sttssamples;
 	bool  empty;
 	struct chunk_table *chunkinfo;
-	// faad symbols to be dynamically loaded
 #if !LINKALL
-	NeAACDecConfigurationPtr (* NeAACDecGetCurrentConfiguration)(NeAACDecHandle);
-	unsigned char (* NeAACDecSetConfiguration)(NeAACDecHandle, NeAACDecConfigurationPtr);
-	NeAACDecHandle (* NeAACDecOpen)(void);
-	void (* NeAACDecClose)(NeAACDecHandle);
-	long (* NeAACDecInit)(NeAACDecHandle, unsigned char *, unsigned long, unsigned long *, unsigned char *);
-	char (* NeAACDecInit2)(NeAACDecHandle, unsigned char *pBuffer, unsigned long, unsigned long *, unsigned char *);
-	void *(* NeAACDecDecode)(NeAACDecHandle, NeAACDecFrameInfo *, unsigned char *, unsigned long);
-	char *(* NeAACDecGetErrorMessage)(unsigned char);
 #endif
 };
 
-static struct faad *a;
+static struct helixaac *a;
 
 extern log_level loglevel;
 
@@ -90,9 +88,9 @@ extern struct processstate process;
 #endif
 
 #if LINKALL
-#define NEAAC(h, fn, ...) (NeAACDec ## fn)(__VA_ARGS__)
+#define HAAC(h, fn, ...) (AAC ## fn)(__VA_ARGS__)
 #else
-#define NEAAC(h, fn, ...) (h)->NeAACDec##fn(__VA_ARGS__)
+#define HAAC(h, fn, ...) (h)->AAC##fn(__VA_ARGS__)
 #endif
 
 // minimal code for mp4 file parsing to extract audio config and find media data
@@ -138,8 +136,8 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 
 		// extract audio config from within esds and pass to DecInit2
 		if (!strcmp(type, "esds") && bytes > len) {
-			unsigned config_len;
 			u8_t *ptr = streambuf->readp + 12;
+			AACFrameInfo info;	
 			if (*ptr++ == 0x03) {
 				mp4_desc_length(&ptr);
 				ptr += 4;
@@ -152,11 +150,17 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 				LOG_WARN("error parsing esds");
 				return -1;
 			}
-			config_len = mp4_desc_length(&ptr);
-			if (NEAAC(a, Init2, a->hAac, ptr, config_len, samplerate_p, channels_p) == 0) {
-				LOG_DEBUG("playable aac track: %u", trak);
-				play = trak;
-			}
+			mp4_desc_length(&ptr);
+			info.profile = *ptr >> 3;
+			info.sampRateCore = (*ptr++ & 0x07) << 1;
+			info.sampRateCore |= (*ptr >> 7) & 0x01;
+			info.sampRateCore = rates[info.sampRateCore];
+			info.nChans = *ptr >> 3;
+			*channels_p = info.nChans;
+			*samplerate_p = info.sampRateCore;
+			HAAC(a, SetRawBlockParams, a->hAac, 0, &info); 
+			LOG_DEBUG("playable aac track: %u (p:%x, r:%d, c:%d)", trak, info.profile, info.sampRateCore, info.nChans);
+			play = trak;
 		}
 
 		// extract the total number of samples from stts
@@ -317,18 +321,19 @@ static int read_mp4_header(unsigned long *samplerate_p, unsigned char *channels_
 	return 0;
 }
 
-static decode_state faad_decode(void) {
-	size_t bytes_total;
-	size_t bytes_wrap;
-	static NeAACDecFrameInfo info;
+static decode_state helixaac_decode(void) {
+	size_t bytes_total, bytes_wrap;
+	int res, bytes;
+	static AACFrameInfo info;
 	ISAMPLE_T *iptr;
+	u8_t *sptr;
 	bool endstream;
 	frames_t frames;
 
 	LOCK_S;
 	bytes_total = _buf_used(streambuf);
 	bytes_wrap  = min(bytes_total, _buf_cont_read(streambuf));
-
+	
 	if (stream.state <= DISCONNECT && !bytes_total) {
 		UNLOCK_S;
 		return DECODE_COMPLETE;
@@ -348,25 +353,29 @@ static decode_state faad_decode(void) {
 		int found = 0;
 		static unsigned char channels;
 		static unsigned long samplerate;
-
+		
 		if (a->type == '2') {
 
 			// adts stream - seek for header
-			while (bytes_wrap >= 2 && (*(streambuf->readp) != 0xFF || (*(streambuf->readp + 1) & 0xF6) != 0xF0)) {
-				_buf_inc_readp(streambuf, 1);
-				bytes_total--;
-				bytes_wrap--;
-			}
+			long n = AACFindSyncWord(streambuf->readp, bytes_wrap);
 			
-			if (bytes_wrap >= 2) {
-				long n = NEAAC(a, Init, a->hAac, streambuf->readp, bytes_wrap, &samplerate, &channels);
-				if (n < 0) {
-					found = -1;
-				} else {
-					_buf_inc_readp(streambuf, n);
+			if (n > 0) {
+				u8_t *p = streambuf->readp + n;
+				int bytes = bytes_wrap - n;
+								
+				if (!HAAC(a, Decode, a->hAac, &p, &bytes, (short*) a->write_buf)) {
+					HAAC(a, GetLastFrameInfo, a->hAac, &info);
+					channels = info.nChans;
+					samplerate = info.sampRateOut;
 					found = 1;
-				}
-			}
+				} 
+			
+				bytes_total -= n;
+				bytes_wrap -= n;
+				_buf_inc_readp(streambuf, n);
+			} else {
+				found = -1;
+			}	
 
 		} else {
 
@@ -409,18 +418,24 @@ static decode_state faad_decode(void) {
 		static u8_t buf[WRAPBUF_LEN];
 		memcpy(buf, streambuf->readp, bytes_wrap);
 		memcpy(buf + bytes_wrap, streambuf->buf, WRAPBUF_LEN - bytes_wrap);
-
-		iptr = NEAAC(a, Decode, a->hAac, &info, buf, WRAPBUF_LEN);
-
+		
+		sptr = buf;
+		bytes = bytes_wrap = WRAPBUF_LEN;
 	} else {
 
-		iptr = NEAAC(a, Decode, a->hAac, &info, streambuf->readp, bytes_wrap);
+		sptr = streambuf->readp;
+		bytes = bytes_wrap;
+	}
+	
+	// decode function changes iptr, so can't use streambuf->readp (same for bytes)
+	res = HAAC(a, Decode, a->hAac, &sptr, &bytes, (short*) a->write_buf);
+	if (res  < 0) {
+		LOG_WARN("AAC decode error %d", res);
 	}
 
-	if (info.error) {
-		LOG_WARN("error: %u %s", info.error, NEAAC(a, GetErrorMessage, info.error));
-	}
-
+	HAAC(a, GetLastFrameInfo, a->hAac, &info);
+	iptr = (ISAMPLE_T *) a->write_buf;
+	bytes = bytes_wrap - bytes;
 	endstream = false;
 
 	// mp4 end of chunk - skip to next offset
@@ -428,8 +443,8 @@ static decode_state faad_decode(void) {
 
 		if (a->chunkinfo[a->nextchunk].offset > a->pos) {
 			u32_t skip = a->chunkinfo[a->nextchunk].offset - a->pos;
-			if (skip != info.bytesconsumed) {
-				LOG_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, info.bytesconsumed, skip);
+			if (skip != bytes) {
+				LOG_DEBUG("skipping to next chunk pos: %u consumed: %u != skip: %u", a->pos, bytes, skip);
 			}
 			if (bytes_total >= skip) {
 				_buf_inc_readp(streambuf, skip);
@@ -444,10 +459,10 @@ static decode_state faad_decode(void) {
 		}
 
 	// adts and mp4 when not at end of chunk 
-	} else if (info.bytesconsumed != 0) {
+	} else if (bytes > 0) {
 
-		_buf_inc_readp(streambuf, info.bytesconsumed);
-		a->pos += info.bytesconsumed;
+		_buf_inc_readp(streambuf, bytes);
+		a->pos += bytes;
 
 	// error which doesn't advance streambuf - end
 	} else {
@@ -461,12 +476,12 @@ static decode_state faad_decode(void) {
 		return DECODE_ERROR;
 	}
 
-	if (!info.samples) {
+	if (!info.outputSamps) {
 		a->empty = true;
 		return DECODE_RUNNING;
 	}
-
-	frames = info.samples / info.channels;
+	
+	frames = info.outputSamps / info.nChans;
 
 	if (a->skip) {
 		u32_t skip;
@@ -479,7 +494,7 @@ static decode_state faad_decode(void) {
 		LOG_DEBUG("gapless: skipping %u frames at start", skip);
 		frames -= skip;
 		a->skip -= skip;
-		iptr += skip * info.channels;
+		iptr += skip * info.nChans;
 	}
 
 	if (a->samples) {
@@ -511,7 +526,7 @@ static decode_state faad_decode(void) {
 		f = min(f, frames);
 		count = f;
 		
-		if (info.channels == 2) {
+		if (info.nChans == 2) {
 #if BYTES_PER_FRAME == 4			
 			memcpy(optr, iptr, count * BYTES_PER_FRAME);
 			iptr += count * 2;
@@ -521,7 +536,7 @@ static decode_state faad_decode(void) {
 				*optr++ = *iptr++ << 8;
 			}
 #endif			
-		} else if (info.channels == 1) {
+		} else if (info.nChans == 1) {
 			while (count--) {
 				*optr++ = ALIGN(*iptr);
 				*optr++ = ALIGN(*iptr++);
@@ -546,9 +561,7 @@ static decode_state faad_decode(void) {
 	return DECODE_RUNNING;
 }
 
-static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
-	NeAACDecConfigurationPtr conf;
-
+static void helixaac_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	LOG_INFO("opening %s stream", size == '2' ? "adts" : "mp4");
 
 	a->type = size;
@@ -568,27 +581,15 @@ static void faad_open(u8_t size, u8_t rate, u8_t chan, u8_t endianness) {
 	a->empty = false;
 
 	if (a->hAac) {
-		NEAAC(a, Close, a->hAac);
+		HAAC(a, FlushCodec, a->hAac);
+	} else {
+		a->hAac = HAAC(a, InitDecoder);	
+		a->write_buf = malloc(FRAME_BUF * BYTES_PER_FRAME);
 	}
-	a->hAac = NEAAC(a, Open);
-
-	conf = NEAAC(a, GetCurrentConfiguration, a->hAac);
-
-#if BYTES_PER_FRAME == 4
-	conf->outputFormat = FAAD_FMT_16BIT;
-#else
-	conf->outputFormat = FAAD_FMT_24BIT;
-#endif
-    conf->defSampleRate = 44100;
-	conf->downMatrix = 1;
-
-	if (!NEAAC(a, SetConfiguration, a->hAac, conf)) {
-		LOG_WARN("error setting config");
-	};
 }
 
-static void faad_close(void) {
-	NEAAC(a, Close, a->hAac);
+static void helixaac_close(void) {
+	HAAC(a, FreeDecoder, a->hAac);
 	a->hAac = NULL;
 	if (a->chunkinfo) {
 		free(a->chunkinfo);
@@ -598,11 +599,12 @@ static void faad_close(void) {
 		free(a->stsc);
 		a->stsc = NULL;
 	}
+	free(a->write_buf);
 }
 
-static bool load_faad() {
+static bool load_helixaac() {
 #if !LINKALL
-	void *handle = dlopen(LIBFAAD, RTLD_NOW);
+	void *handle = dlopen(LIBHELIX-AAC, RTLD_NOW);
 	char *err;
 
 	if (!handle) {
@@ -610,38 +612,31 @@ static bool load_faad() {
 		return false;
 	}
 
-	a->NeAACDecGetCurrentConfiguration = dlsym(handle, "NeAACDecGetCurrentConfiguration");
-	a->NeAACDecSetConfiguration = dlsym(handle, "NeAACDecSetConfiguration");
-	a->NeAACDecOpen = dlsym(handle, "NeAACDecOpen");
-	a->NeAACDecClose = dlsym(handle, "NeAACDecClose");
-	a->NeAACDecInit = dlsym(handle, "NeAACDecInit");
-	a->NeAACDecInit2 = dlsym(handle, "NeAACDecInit2");
-	a->NeAACDecDecode = dlsym(handle, "NeAACDecDecode");
-	a->NeAACDecGetErrorMessage = dlsym(handle, "NeAACDecGetErrorMessage");
+	// load symbols here
 
 	if ((err = dlerror()) != NULL) {
 		LOG_INFO("dlerror: %s", err);		
 		return false;
 	}
 
-	LOG_INFO("loaded "LIBFAAD"");
+	LOG_INFO("loaded "LIBHELIX-AAC"");
 #endif
 
 	return true;
 }
 
-struct codec *register_faad(void) {
+struct codec *register_helixaac(void) {
 	static struct codec ret = { 
 		'a',          // id
 		"aac",        // types
 		WRAPBUF_LEN,  // min read
 		20480,        // min space
-		faad_open,    // open
-		faad_close,   // close
-		faad_decode,  // decode
+		helixaac_open,    // open
+		helixaac_close,   // close
+		helixaac_decode,  // decode
 	};
 
-	a = malloc(sizeof(struct faad));
+	a = malloc(sizeof(struct helixaac));
 	if (!a) {
 		return NULL;
 	}
@@ -650,10 +645,10 @@ struct codec *register_faad(void) {
 	a->chunkinfo = NULL;
 	a->stsc = NULL;
 
-	if (!load_faad()) {
+	if (!load_helixaac()) {
 		return NULL;
 	}
 
-	LOG_INFO("using faad to decode aac");
+	LOG_INFO("using helix-aac to decode aac");
 	return &ret;
 }
