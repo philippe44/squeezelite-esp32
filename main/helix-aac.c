@@ -359,16 +359,20 @@ static decode_state helixaac_decode(void) {
 			// adts stream - seek for header
 			long n = AACFindSyncWord(streambuf->readp, bytes_wrap);
 			
-			if (n > 0) {
+			LOG_DEBUG("Sync search in %d bytes %d", bytes_wrap, n);
+			
+			if (n >= 0) {
 				u8_t *p = streambuf->readp + n;
 				int bytes = bytes_wrap - n;
-								
+				
 				if (!HAAC(a, Decode, a->hAac, &p, &bytes, (short*) a->write_buf)) {
 					HAAC(a, GetLastFrameInfo, a->hAac, &info);
 					channels = info.nChans;
 					samplerate = info.sampRateOut;
 					found = 1;
 				} 
+				
+				HAAC(a, FlushCodec, a->hAac);
 			
 				bytes_total -= n;
 				bytes_wrap -= n;
