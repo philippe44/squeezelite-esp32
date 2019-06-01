@@ -603,7 +603,7 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	if (s > max_s) max_s = s;
 	
 	if (!(count++ & 0x7ff)) {
-		LOG_INFO("frames %d (count:%d) (out:%d/%d/%d, stream:%d/%d/%d)", frames, count, max_o, min_o, o, max_s, min_s, s);
+		LOG_INFO("output:%d/%d/%d stream:%d/%d/%d (max/min/current)", max_o, min_o, o, max_s, min_s, s);
 		min_o = min_s = -1;
 		max_o = max_s = -0;
 	}

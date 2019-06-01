@@ -58,3 +58,5 @@ $RECYCLE.BIN/
 *.lnk
 sdkconfig
 *.save
+libs/
+
