@@ -26,12 +26,14 @@ static log_level loglevel;
 
 static xQueueHandle s_bt_app_task_queue = NULL;
 static xTaskHandle s_bt_app_task_handle = NULL;
+
+
 void bt_set_log_level(log_level level){
 	loglevel = level;
 }
 bool bt_app_work_dispatch(bt_app_cb_t p_cback, uint16_t event, void *p_params, int param_len, bt_app_copy_cb_t p_copy_cback)
 {
-	LOG_DEBUG("%s event 0x%x, param len %d", __func__, event, param_len);
+	LOG_SDEBUG("%s event 0x%x, param len %d", __func__, event, param_len);
 
     bt_app_msg_t msg;
     memset(&msg, 0, sizeof(bt_app_msg_t));
@@ -81,7 +83,7 @@ static void bt_app_task_handler(void *arg)
     bt_app_msg_t msg;
     for (;;) {
         if (pdTRUE == xQueueReceive(s_bt_app_task_queue, &msg, (portTickType)portMAX_DELAY)) {
-            LOG_DEBUG("%s, sig 0x%x, 0x%x", __func__, msg.sig, msg.event);
+        	LOG_SDEBUG("%s, sig 0x%x, 0x%x", __func__, msg.sig, msg.event);
             switch (msg.sig) {
             case BT_APP_SIG_WORK_DISPATCH:
                 bt_app_work_dispatched(&msg);
