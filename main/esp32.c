@@ -35,7 +35,18 @@ extern struct buffer *streambuf;
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 int64_t connecting_timeout = 0;
-
+#ifndef CONFIG_A2DP_SINK_NAME
+#define CONFIG_A2DP_SINK_NAME "btspeaker" // fix some compile errors when BT is not chosen
+#endif
+#ifndef CONFIG_A2DP_CONNECT_TIMEOUT_MS
+#define CONFIG_A2DP_CONNECT_TIMEOUT_MS 2000
+#endif
+#ifndef CONFIG_A2DP_DEV_NAME
+#define CONFIG_A2DP_DEV_NAME "espsqueezelite"
+#endif
+#ifndef CONFIG_A2DP_CONTROL_DELAY_MS
+#define CONFIG_A2DP_CONTROL_DELAY_MS 1000
+#endif
 #define A2DP_TIMER_INIT connecting_timeout = esp_timer_get_time() +(CONFIG_A2DP_CONNECT_TIMEOUT_MS * 1000)
 #define IS_A2DP_TIMER_OVER esp_timer_get_time() >= connecting_timeout
 
@@ -551,6 +562,7 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	return frames * BYTES_PER_FRAME;
 }
 static bool running_test;
+#ifdef BTAUDIO
 bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 
 //	running_test  = true;
@@ -570,7 +582,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	}
 	return true;
 }
-
+#endif
 static void a2d_app_heart_beat(void *arg)
 {
     bt_app_work_dispatch(bt_app_av_sm_hdlr, BT_APP_HEART_BEAT_EVT, NULL, 0, NULL);

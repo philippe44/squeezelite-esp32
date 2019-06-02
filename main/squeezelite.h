@@ -81,6 +81,9 @@
 #if defined(DACAUDIO)
 #undef DACAUDIO
 #define DACAUDIO  1
+#elif defined(BTAUDIO)
+#undef BTAUDIO
+#define BTAUDIO 1
 #elif LINUX && !defined(PORTAUDIO)
 #define ALSA      1
 #define PORTAUDIO 0
@@ -738,12 +741,20 @@ void _pa_open(void);
 #endif
 
 // output_dac.c
-// todo: do we need a distinction between DACAUDIO and BTAUDIO?
-#if DACAUDIO || BTAUDIO
+#if DACAUDIO
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_dac(void);
+void hal_bluetooth_init(log_level loglevel);
+#endif
+
+//output_bt.c
+#if  BTAUDIO
+void set_volume(unsigned left, unsigned right);
+bool test_open(const char *device, unsigned rates[], bool userdef_rates);
+void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_close_bt(void);
 void hal_bluetooth_init(log_level loglevel);
 #endif
 

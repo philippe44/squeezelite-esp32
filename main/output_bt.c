@@ -17,10 +17,10 @@ extern struct buffer *streambuf;
 
 extern u8_t *silencebuf;
 extern u8_t *bt_optr;
-
+void hal_bluetooth_init(log_level);
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
-
+#if BTAUDIO
 void set_volume(unsigned left, unsigned right) {
 	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
@@ -31,10 +31,10 @@ void set_volume(unsigned left, unsigned right) {
 	output.gainR = FIXED_ONE;
 	UNLOCK;
 }
+#endif
 
 
-
-void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
+void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
 
 	LOG_INFO("init output BT");
@@ -59,7 +59,7 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 
 }
 
-void output_close_dac(void) {
+void output_close_bt(void) {
 	LOG_INFO("close output");
 	LOCK;
 	running = false;
