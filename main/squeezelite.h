@@ -467,7 +467,24 @@ void logprint(const char *fmt, ...);
 #define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
+static inline void DEBUG_LOG_TIMED(uint32_t delayms, char * strFmt, ...)
+{
+	static log_level loglevel;
+	va_list args;
+	va_start(args, strFmt);
+	static uint32_t nextDebugLog=0;
+	if(esp_timer_get_time()>nextDebugLog)
+	{
+		if (loglevel >= lDEBUG)
+		{
+			logprint("%s %s:%d ", logtime(), __FUNCTION__, __LINE__);
+			logprint(strFmt , args);
+			logprint("\n");
+		}
 
+		nextDebugLog=esp_timer_get_time()+delayms*1000;
+	}
+}
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
 #if WIN && USE_SSL
@@ -721,12 +738,15 @@ void _pa_open(void);
 #endif
 
 // output_dac.c
-#if DACAUDIO
+// todo: do we need a distinction between DACAUDIO and BTAUDIO?
+#if DACAUDIO || BTAUDIO
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_dac(void);
+void hal_bluetooth_init(log_level loglevel);
 #endif
+
 
 // output_stdout.c
 void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
