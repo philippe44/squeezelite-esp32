@@ -57,3 +57,6 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 sdkconfig
+*.save
+libs/
+

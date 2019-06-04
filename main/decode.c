@@ -54,7 +54,7 @@ static bool running = true;
 #endif
 
 static void *decode_thread() {
-
+	
 	while (running) {
 		size_t bytes, space, min_space;
 		bool toend;
@@ -174,6 +174,9 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	if (!strstr(exclude_codecs, "aac")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "aac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_faad());
 #endif
+
+	if (!strstr(exclude_codecs, "aac")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "aac"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_helixaac());
 
 	if (!strstr(exclude_codecs, "ogg")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ogg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_vorbis());
