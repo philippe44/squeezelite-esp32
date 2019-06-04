@@ -25,7 +25,8 @@
 #include "esp_gap_bt_api.h"
 #include "esp_a2dp_api.h"
 #include "esp_avrc_api.h"
-
+#include "esp_pthread.h"
+#include "pthread.h"
 #define BT_AV_TAG               "BT_AV"
 u8_t *bt_optr;
 extern log_level loglevel;
@@ -49,6 +50,17 @@ int64_t connecting_timeout = 0;
 #endif
 #define A2DP_TIMER_INIT connecting_timeout = esp_timer_get_time() +(CONFIG_A2DP_CONNECT_TIMEOUT_MS * 1000)
 #define IS_A2DP_TIMER_OVER esp_timer_get_time() >= connecting_timeout
+
+#define FRAME_TO_BYTES(f) f*BYTES_PER_FRAME
+#define BYTES_TO_FRAME(b) b/BYTES_PER_FRAME
+#define FRAMES_TO_MS(f) 1000*f/output.current_sample_rate
+#define BYTES_TO_MS(b) FRAMES_TO_MS(BYTES_TO_FRAME(b))
+
+#define SET_MIN_MAX(val,var) var=val; if(var<min_##var) min_##var=var; if(var>max_##var) max_##var=var
+#define RESET_MIN_MAX(var,mv) min_##var=mv##_MAX; max_##var=mv##_MIN
+#define DECLARE_MIN_MAX(var,t,mv) static t min_##var = mv##_MAX, max_##var = mv##_MIN; t var=0
+#define DECLARE_ALL_MIN_MAX DECLARE_MIN_MAX(req, long,LONG); DECLARE_MIN_MAX(o, long,LONG); DECLARE_MIN_MAX(s, long,LONG); DECLARE_MIN_MAX(d, long,LONG);
+#define RESET_ALL_MIN_MAX RESET_MIN_MAX(d,LONG); RESET_MIN_MAX(o,LONG); RESET_MIN_MAX(s,LONG); RESET_MIN_MAX(req,LONG);
 
 
 void get_mac(u8_t mac[]) {
@@ -494,9 +506,8 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 {
 	frames_t frames;
 	static int count = 0;
-	static unsigned min_o = -1, max_o = 0, min_s = -1, max_s = 0;
-	unsigned o, s;
 
+	DECLARE_ALL_MIN_MAX;
 
 	if (len < 0 || data == NULL ) {
         return 0;
@@ -545,18 +556,27 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 
 	UNLOCK;
 
-	o = _buf_used(outputbuf);
-	if (o < min_o) min_o = o;
-	if (o > max_o) max_o = o;
-
-	s = _buf_used(streambuf);
-	if (s < min_s) min_s = s;
-	if (s > max_s) max_s = s;
+	SET_MIN_MAX(_buf_used(outputbuf),o);
+	SET_MIN_MAX(_buf_used(streambuf),s);
+	SET_MIN_MAX(frames,req);
 
 	if (!(count++ & 0x1ff)) {
-		LOG_INFO("frames %d (count:%d) (out:%d/%d/%d, stream:%d/%d/%d)", frames, count, max_o, min_o, o, max_s, min_s, s);
-		min_o = min_s = -1;
-		max_o = max_s = -0;
+		LOG_INFO( "count:%d"
+							"\n              ----------+----------+-----------+  +----------+----------+----------------+"
+							"\n                    max |      min |    current|  |      max |      min |        current |"
+							"\n                   (ms) |     (ms) |       (ms)|  | (frames) | (frames) |        (frames)|"
+							"\n              ----------+----------+-----------+  +----------+----------+----------------+"
+							"\nout           %10d|%10d|%11d|"                 "  |%10d|%10d|%16d|"
+							"\nstream        %10d|%10d|%11d|"                 "  |%10d|%10d|%16d|"
+							"\nN/A           %10d|%10d|%11d|"                 "  |%10d|%10d|%16d|"
+							"\nrequested     %10d|%10d|%11d|"                 "  |%10d|%10d|%16d|"
+							"\n              ----------+----------+-----------+  +----------+----------+----------------+",
+							count,
+							BYTES_TO_MS(max_o), BYTES_TO_MS(min_o),BYTES_TO_MS(o),max_o,min_o,o,
+							BYTES_TO_MS(max_s), BYTES_TO_MS(min_s),BYTES_TO_MS(s),max_s,min_s,s,
+							BYTES_TO_MS(max_d),BYTES_TO_MS(min_d),BYTES_TO_MS(d),max_d,min_d,d,
+							FRAMES_TO_MS(req),FRAMES_TO_MS(req),FRAMES_TO_MS(req), req, req,req);
+		RESET_ALL_MIN_MAX;
 	}
 
 	return frames * BYTES_PER_FRAME;

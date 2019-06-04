@@ -132,6 +132,10 @@ void app_main()
 		"decode=" CONFIG_LOGGING_DECODE,
 		"-d",
 		"output=" CONFIG_LOGGING_OUTPUT,
+#ifdef CONFIG_LOG_OPTION
+		"-d",
+		CONFIG_LOG_OPTION,
+#endif
 		"-b",
 		"500:2000"
 

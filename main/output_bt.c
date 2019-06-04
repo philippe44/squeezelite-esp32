@@ -41,7 +41,7 @@ void output_init_bt(log_level level, char *device, unsigned output_buf_size, cha
 
 	memset(&output, 0, sizeof(output));
 
-	output.start_frames = 0; //CONFIG_ //FRAME_BLOCK * 2;
+	output.start_frames = FRAME_BLOCK; //CONFIG_ //FRAME_BLOCK * 2;
 	output.write_cb = &_write_frames;
 	output.rate_delay = rate_delay;
 

@@ -647,7 +647,7 @@ typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNIN
 typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
 typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_BE } output_format;
 #else
-typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE,S32_BE, S24_BE, S24_3BE, S16_BE } output_format;
 #endif
 
 typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
