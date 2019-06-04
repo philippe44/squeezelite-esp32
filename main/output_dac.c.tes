@@ -1,0 +1,163 @@
+#include "squeezelite.h"
+#include "driver/i2s.h"
+
+static log_level loglevel;
+
+static bool running = true;
+
+extern struct outputstate output;
+extern struct buffer *outputbuf;
+extern struct buffer *streambuf;
+
+#define LOCK   mutex_lock(outputbuf->mutex)
+#define UNLOCK mutex_unlock(outputbuf->mutex)
+
+#define FRAME_BLOCK MAX_SILENCE_FRAMES
+
+extern u8_t *silencebuf;
+extern u8_t *buf;
+
+#define I2S_NUM         (0)
+#define WAVE_FREQ_HZ    (100)
+#define PI              (3.14159265)
+#define I2S_BCK_IO      (GPIO_NUM_26)
+#define I2S_WS_IO       (GPIO_NUM_25)
+#define I2S_DO_IO       (GPIO_NUM_22)
+#define I2S_DI_IO       (-1)
+// buffer length is expressed in number of samples
+#define I2S_BUF_LEN		60
+
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL,
+		s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out,
+		ISAMPLE_T **cross_ptr);
+
+void set_volume(unsigned left, unsigned right) {
+	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
+	LOCK;
+	output.gainL = left;
+	output.gainR = right;
+	// TODO
+	output.gainL = FIXED_ONE;
+	output.gainR = FIXED_ONE;
+	UNLOCK;
+}
+
+static void *output_thread(void *arg) {
+	bool start = true;
+	bool output_off = (output.state == OUTPUT_OFF);
+	bool probe_device = (arg != NULL);
+	int err;
+
+	while (running) {
+		// todo: implement output off logic?
+		// todo: call i2s_set_clock here if rate is changed
+		LOCK;
+
+		output.device_frames = 0;
+		output.updated = gettime_ms();
+		output.frames_played_dmp = output.frames_played;
+
+		_output_frames(I2S_BUF_LEN*2); // fill at least one DMA buffer with stereo signal
+
+		UNLOCK;
+	}
+
+	return 0;
+}
+
+static pthread_t thread;
+
+void output_init_dac(log_level level, char *device, unsigned output_buf_size,
+		char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
+	loglevel = level;
+
+	LOG_INFO("init output DAC");
+
+	memset(&output, 0, sizeof(output));
+
+	output.start_frames = 0; //CONFIG_ //FRAME_BLOCK * 2;
+	output.write_cb = &_write_frames;
+	output.rate_delay = rate_delay;
+
+	// ensure output rate is specified to avoid test open
+	if (!rates[0]) {
+		rates[0] = 44100;
+	}
+	device = "DAC";
+	output_init_common(level, device, output_buf_size, rates, idle);
+
+	i2s_config_t i2s_config = {
+			.mode = I2S_MODE_MASTER | I2S_MODE_TX,                    // Only TX
+			.sample_rate = output.current_sample_rate,
+			.bits_per_sample = BYTES_PER_FRAME * 8,
+			.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,           //2-channels
+			.communication_format = I2S_COMM_FORMAT_I2S
+					| I2S_COMM_FORMAT_I2S_MSB,
+			.dma_buf_count = 6, //todo: tune this parameter. Expressed in numbrer of buffers
+			.dma_buf_len = I2S_BUF_LEN, // todo: tune this parameter. Expressed in number of samples. Byte size depends on bit depth
+			.use_apll = false,
+			.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1 //Interrupt level 1
+			};
+	i2s_pin_config_t pin_config = { .bck_io_num = I2S_BCK_IO, .ws_io_num =
+			I2S_WS_IO, .data_out_num = I2S_DO_IO, .data_in_num = I2S_DI_IO //Not used
+			};
+	i2s_driver_install(I2S_NUM, &i2s_config, 0, NULL);
+	i2s_set_pin(I2S_NUM, &pin_config);
+	i2s_set_clk(I2S_NUM, output.current_sample_rate, i2s_config.bits_per_sample, 2);
+
+#if LINUX || OSX || FREEBSD || POSIX
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+#ifdef PTHREAD_STACK_MIN
+	pthread_attr_setstacksize(&attr,
+			PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
+#endif
+	pthread_create(&thread, &attr, output_thread, NULL);
+	pthread_attr_destroy(&attr);
+#endif
+#if WIN
+	thread = CreateThread(NULL, OUTPUT_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&output_thread, NULL, 0, NULL);
+#endif
+
+}
+
+void output_close_dac(void) {
+	LOG_INFO("close output");
+	LOCK;
+	running = false;
+	UNLOCK;
+
+	output_close_common();
+}
+
+static int _write_frames(frames_t out_frames, bool silence, s32_t gainL,
+		s32_t gainR, s32_t cross_gain_in, s32_t cross_gain_out,
+		ISAMPLE_T **cross_ptr) {
+
+	u8_t *obuf;
+	size_t i2s_bytes_write = 0;
+
+	if (!silence) {
+
+		if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && *cross_ptr) {
+			_apply_cross(outputbuf, out_frames, cross_gain_in, cross_gain_out, cross_ptr);
+		}
+
+		obuf = outputbuf->readp;
+
+	} else {
+
+		obuf = silencebuf;
+	}
+
+	//_scale_and_pack_frames(buf + buffill * bytes_per_frame, (s32_t *)(void *)obuf, out_frames, gainL, gainR, output.format);
+
+//	buffill += out_frames;
+	   i2s_write(I2S_NUM, obuf, out_frames  *BYTES_PER_FRAME, &i2s_bytes_write, 100);
+
+
+
+	return (int)i2s_bytes_write * BYTES_PER_FRAME;
+
+}
+
