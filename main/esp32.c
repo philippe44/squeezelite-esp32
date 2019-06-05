@@ -539,7 +539,6 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
    	output.updated = gettime_ms();
    	output.frames_played_dmp = output.frames_played;
 	//if (output.threshold < 20) output.threshold = 20;
-	int ret;
 
 	frames_t wanted_frames=len/BYTES_PER_FRAME;
 	bt_optr = data; // needed for the _write_frames callback
@@ -581,7 +580,7 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 
 	return frames * BYTES_PER_FRAME;
 }
-static bool running_test;
+
 #ifdef BTAUDIO
 bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 

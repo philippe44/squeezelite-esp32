@@ -561,3 +561,57 @@ char *strcasestr(const char *haystack, const char *needle) {
 	return NULL;
 }
 #endif
+uint8_t get_bytes_per_frame(output_format fmt)
+{
+	uint8_t bpf=0;
+
+	switch (fmt) {
+		case S32_LE:
+			bpf=4*2;
+			break;
+		case S24_LE:
+			bpf=3*2;
+			break;
+		case S24_3LE:
+			bpf=3*2;
+			break;
+		case S16_LE:
+			bpf=2*2;
+			break;
+#if CONFIG_DACAUDIO
+		case S24_BE:
+			bpf=3*2;
+			break;
+		case S24_3BE:
+			bpf=3*2;
+			break;
+		case S16_BE:
+			bpf=2*2;
+			break;
+		case S8_BE:
+			bpf=2*2;
+			break;
+#endif
+#if DSD
+		case U8:
+			bpf=1*2;
+			break;
+		case U16_LE:
+			bpf=2*2;
+			break;
+		case U16_BE:
+			bpf=2*2;
+			break;
+		case U32_LE:
+			bpf=4*2;
+			break;
+		case U32_BE:
+			bpf=4*2;
+			break;
+#endif
+		default:
+			break;
+	}
+	assert(bpf>0);
+	return bpf;
+}

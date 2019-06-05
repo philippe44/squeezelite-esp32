@@ -115,6 +115,8 @@ static void wifi_scan(void)
 int main(int argc, char**argv);
 
 
+#define DO_EXPAND(VAL)  VAL ## 1
+#define EXPAND(VAL)     DO_EXPAND(VAL)
 void app_main()
 {
 	int i; 
@@ -122,8 +124,12 @@ void app_main()
 		"squeezelite-esp32",
 		"-C",
 		"1",
+		"-o",
+		CONFIG_OUTPUT_NAME,
 		"-n",
 		"ESP32",
+		"-r",
+		"OUTPUT_RATES",
 		"-d",
 		"slimproto=" CONFIG_LOGGING_SLIMPROTO,
 		"-d",
@@ -132,10 +138,6 @@ void app_main()
 		"decode=" CONFIG_LOGGING_DECODE,
 		"-d",
 		"output=" CONFIG_LOGGING_OUTPUT,
-#ifdef CONFIG_LOG_OPTION
-		"-d",
-		CONFIG_LOG_OPTION,
-#endif
 		"-b",
 		"500:2000"
 

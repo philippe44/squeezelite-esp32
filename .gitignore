@@ -30,6 +30,11 @@
 *.out
 *.app
 
+# Build files with potential private info
+build/
+sdkconfig
+sdkconfig.old
+
 # =========================
 # Operating System Files
 # =========================
@@ -56,7 +61,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
-sdkconfig
 *.save
 libs/
 

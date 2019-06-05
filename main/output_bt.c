@@ -52,7 +52,7 @@ void output_init_bt(log_level level, char *device, unsigned output_buf_size, cha
 /*
  * Bluetooth audio source init Start
  */
-	device = "BT";
+	device = CONFIG_OUTPUT_NAME;
 	output_init_common(level, device, output_buf_size, rates, idle);
 
 
@@ -72,7 +72,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 
 	if (!silence ) {
 		DEBUG_LOG_TIMED(200,"Not silence, Writing audio out.");
-		/* TODO need 16 bit fix
+		// TODO need 16 bit fix
 
 		if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && *cross_ptr) {
 			_apply_cross(outputbuf, out_frames, cross_gain_in, cross_gain_out, cross_ptr);
