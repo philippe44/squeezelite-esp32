@@ -34,7 +34,6 @@
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION
 #endif
 
-
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
 #endif
@@ -42,6 +41,11 @@
 #define QUOTE(name) #name
 #define STR(macro)  QUOTE(macro)
 #define MODEL_NAME_STRING STR(MODEL_NAME)
+
+#if defined(EMBEDDED)
+#define POSIX 1
+#include "embedded.h"
+#endif
 
 // build detection
 #if defined(linux)
@@ -78,12 +82,13 @@
 #error unknown target
 #endif
 
-#if defined(DACAUDIO)
-#undef DACAUDIO
-#define DACAUDIO  1
-#elif defined(BTAUDIO)
-#undef BTAUDIO
-#define BTAUDIO 1
+
+#if defined(CONFIG_DACAUDIO)
+#undef CONFIG_DACAUDIO
+#define CONFIG_DACAUDIO  1
+#elif defined(CONFIG_BTAUDIO)
+#undef CONFIG_BTAUDIO
+#define CONFIG_BTAUDIO 1
 #elif LINUX && !defined(PORTAUDIO)
 #define ALSA      1
 #define PORTAUDIO 0
@@ -646,9 +651,13 @@ typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNIN
 #if DSD
 typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
 typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_BE } output_format;
+#elif CONFIG_DACAUDIO
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, S24_BE, S24_3BE, S16_BE, S8_BE } output_format;
 #else
-typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE,S32_BE, S24_BE, S24_3BE, S16_BE } output_format;
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
 #endif
+extern uint8_t get_bytes_per_frame(output_format fmt);
+
 
 typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
 typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
@@ -741,7 +750,7 @@ void _pa_open(void);
 #endif
 
 // output_dac.c
-#if DACAUDIO
+#if CONFIG_DACAUDIO
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
@@ -750,7 +759,7 @@ void hal_bluetooth_init(log_level loglevel);
 #endif
 
 //output_bt.c
-#if  BTAUDIO
+#if  CONFIG_BTAUDIO
 void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);

@@ -525,7 +525,7 @@ int main(int argc, char **argv) {
 			pidfile = optarg;
 			break;
 #endif
-#if !DACAUDIO && !BTAUDIO
+#if !CONFIG_DACAUDIO && !CONFIG_BTAUDIO
 		case 'l':
 			list_devices();
 			exit(0);
@@ -749,9 +749,9 @@ int main(int argc, char **argv) {
 
 	stream_init(log_stream, stream_buf_size);
 
-#if BTAUDIO
+#if CONFIG_BTAUDIO
 	output_init_bt(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
-#elif DACAUDIO
+#elif CONFIG_DACAUDIO
 	output_init_dac(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #else
 	if (!strcmp(output_device, "-")) {
@@ -801,7 +801,7 @@ int main(int argc, char **argv) {
 	decode_close();
 	stream_close();
 
-#if DACAUDIO
+#if CONFIG_DACAUDIO
 	output_close_dac();	
 #elif BTAUDIO
 	output_close_bt();

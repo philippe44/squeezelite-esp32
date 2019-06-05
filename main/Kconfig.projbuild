@@ -20,13 +20,7 @@ menu "Squeezelite-ESP32"
         	default "info"
         	help
         		Set logging level info|debug|sdebug 	
-        		
 	endmenu
-	config LOG_OPTION
-		string "squeezelite log option"
-		default "all=info"
-		help 
-			log=level	Set logging level, logs: all|slimproto|stream|decode|output, level: info|debug|sdebug
 	menu "Wifi Configuration"
     config WIFI_SSID
         string "WiFi SSID"
@@ -133,33 +127,76 @@ menu "Squeezelite-ESP32"
 	        config BTAUDIO
 	            bool "Bluetooth A2DP"
 	    endchoice
-	    
-	    config A2DP_SINK_NAME
-	        string "Name of Bluetooth A2DP device"
-	        depends on BTAUDIO
-	        default "SMSL BT4.2"
-	        help
-	            This is the name of the bluetooth speaker that Squeezelite will try connecting to.
-	   
-	    config A2DP_DEV_NAME
-	        string "Name of Squeezelite device to use when connecting to A2DP device"
-	        depends on BTAUDIO
-	        default "Squeezelite"
-	        help
-	            This is the name of the device that the Bluetooth speaker will see when it is connected to.
-	    config A2DP_CONTROL_DELAY_MS
-	        int "Control loop delay. "
-	        depends on BTAUDIO
-	        default 500
-	        help
-	            Decreasing this will lead to a more responsive BT control, but might lead to noisy log files if debug is enabled.
-	    config A2DP_CONNECT_TIMEOUT_MS
-	    	int "Time out duration when trying to connect to an A2DP audio sink"
-			depends on BTAUDIO
-	        default 1000
-	        help
-	            Increasing this value will give more chance for less stable connections to be established.	    		            
-	            
+	  	config OUTPUT_NAME 
+			string 
+			default ""
+		    default "BT" if BTAUDIO
+		    default "DAC" if DACAUDIO
+		config OUTPUT_RATES
+			string "Output rates"
+			default "48000,44100"
+			help
+				<rates>[:<delay>]	Sample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms  
+    	if DACAUDIO
+		    config I2S_NUM         
+		        int "I2S channel (0 or 1). "
+		        default 0
+		        help
+		            I2S dma channel to use.  
+		    config I2S_BCK_IO         
+		        int "I2S Bit clock GPIO number. "
+		        default 26
+		        help
+		            I2S Bit Clock gpio pin to use.  
+		    config I2S_WS_IO         
+		        int "I2S Word Select GPIO number. "
+		        default 25
+		        help
+		            I2S Word Select gpio pin to use.
+		    config I2S_DO_IO         
+		        int "I2S Data I/O GPIO number. "
+		        default 22
+		        help
+		            I2S data I/O gpio pin to use.
+		    choice 
+	  			prompt "Bit Depth for I2S output"
+		        default I2S_BITS_PER_CHANNEL_16
+		        config I2S_BITS_PER_CHANNEL_24
+		            bool "24 Bits"
+		        config I2S_BITS_PER_CHANNEL_16
+		            bool "16 Bits"
+		        config I2S_BITS_PER_CHANNEL_8
+		            bool "8 Bits"
+		    endchoice
+			config I2S_BITS_PER_CHANNEL
+			    int
+			    default 16
+			    default 16 if I2S_BITS_PER_CHANNEL_16
+			    default 24 if I2S_BITS_PER_CHANNEL_24
+			    default 8 if I2S_BITS_PER_CHANNEL_8
+		endif # DACAUDIO
+		if BTAUDIO
+		    config A2DP_SINK_NAME
+		        string "Name of Bluetooth A2DP device"
+		        default "SMSL BT4.2"
+		        help
+		            This is the name of the bluetooth speaker that Squeezelite will try connecting to.
+		    config A2DP_DEV_NAME
+		        string "Name of Squeezelite device to use when connecting to A2DP device"
+		        default "Squeezelite"
+		        help
+		            This is the name of the device that the Bluetooth speaker will see when it is connected to.
+		    config A2DP_CONTROL_DELAY_MS
+		        int "Control loop delay. "
+		        default 500
+		        help
+		            Decreasing this will lead to a more responsive BT control, but might lead to noisy log files if debug is enabled.
+		    config A2DP_CONNECT_TIMEOUT_MS
+		    	int "Time out duration when trying to connect to an A2DP audio sink"
+		        default 1000
+		        help
+		            Increasing this value will give more chance for less stable connections to be established.	    		            
+		endif # BTAUDIO   
 	endmenu
 
 endmenu
