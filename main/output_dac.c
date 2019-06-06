@@ -360,6 +360,40 @@ static void *output_thread() {
 		 * End Statistics reporting
 		 */
 		//wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written));
+
+		/*
+		 * Statistics reporting
+		 */
+#define STATS_PERIOD_MS 5000
+		count++;
+		TIMED_SECTION_START_MS(STATS_PERIOD_MS);
+
+		LOG_INFO( "count:%d, current sample rate: %d, bytes per frame: %d, avg cycle duration (ms): %d",count,output.current_sample_rate, out_bytes_per_frame,STATS_PERIOD_MS/count);
+		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
+		LOG_INFO( "                    max |      min |    current|  |      max |      min |        current |");
+		LOG_INFO( "                   (ms) |     (ms) |       (ms)|  |  (bytes) |  (bytes) |        (bytes) |");
+		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
+		LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("local free",loci2sbuf));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
+		LOG_INFO("              ----------+----------+-----------+  +----------+----------+----------------+");
+		LOG_INFO("");
+		LOG_INFO("              max (us)  | min (us) |current(us)|  ");
+		LOG_INFO("              ----------+----------+-----------+  ");
+		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Buffering(us)",buffering));
+		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("i2s tfr(us)",i2s_time));
+		LOG_INFO("              ----------+----------+-----------+  ");
+		RESET_ALL_MIN_MAX;
+		count=0;
+		TIMED_SECTION_END;
+		/*
+		 * End Statistics reporting
+		 */
+		wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written));
 	}
 
 
