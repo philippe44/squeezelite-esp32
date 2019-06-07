@@ -803,7 +803,7 @@ int main(int argc, char **argv) {
 
 #if CONFIG_DACAUDIO
 	output_close_dac();	
-#elif BTAUDIO
+#elif CONFIG_BTAUDIO
 	output_close_bt();
 #else
 	if (!strcmp(output_device, "-")) {

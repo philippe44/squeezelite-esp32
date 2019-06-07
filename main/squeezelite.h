@@ -751,7 +751,7 @@ void _pa_open(void);
 
 // output_dac.c
 #if CONFIG_DACAUDIO
-void set_volume(unsigned left, unsigned right);
+void set_volume_dac(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_dac(void);
@@ -760,7 +760,7 @@ void hal_bluetooth_init(log_level loglevel);
 
 //output_bt.c
 #if  CONFIG_BTAUDIO
-void set_volume(unsigned left, unsigned right);
+void set_volume_bt(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_bt(void);

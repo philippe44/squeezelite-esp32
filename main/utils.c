@@ -615,3 +615,11 @@ uint8_t get_bytes_per_frame(output_format fmt)
 	assert(bpf>0);
 	return bpf;
 }
+/****************************************************************************************
+ * Wait for a duration based on a frame count
+ */
+extern struct outputstate output;
+void wait_for_frames(size_t frames, uint8_t pct)
+{
+	usleep((1000* frames/output.current_sample_rate*pct/100) );
+}

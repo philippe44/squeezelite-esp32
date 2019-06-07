@@ -195,7 +195,14 @@ menu "Squeezelite-ESP32"
 		    	int "Time out duration when trying to connect to an A2DP audio sink"
 		        default 1000
 		        help
-		            Increasing this value will give more chance for less stable connections to be established.	    		            
+		            Increasing this value will give more chance for less stable connections to be established.	   
+            config A2DP_DISCONNECT_MS
+            	int "Time in ms before disconnecting from A2DP audio sink. Set to 0 for no disconnect."
+            	default 10000
+            	help
+            		Controls how long to wait before disconnecting from the A2DP audio sink after playback is stopped
+            		Longer delay will ensure better responsiveness at the expense of locking the audio sink for a longer period. 
+            		A shorter period may cause the player to disconnect between tracks change.
 		endif # BTAUDIO   
 	endmenu
 

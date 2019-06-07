@@ -28,6 +28,22 @@
 	RESET_MIN_MAX(i2savailable,LONG);\
 	RESET_MIN_MAX(i2s_time,LONG);
 
+// Prevent compile errors if dac output is
+// included in the build and not actually activated in menuconfig
+#ifndef CONFIG_I2S_BCK_IO
+#define CONFIG_I2S_BCK_IO -1
+#endif
+#ifndef CONFIG_I2S_WS_IO
+#define CONFIG_I2S_WS_IO -1
+#endif
+#ifndef CONFIG_I2S_DO_IO
+#define CONFIG_I2S_DO_IO -1
+#endif
+#ifndef CONFIG_I2S_NUM
+#define CONFIG_I2S_NUM -1
+#endif
+
+
 static log_level loglevel;
 size_t dac_buffer_size =0;
 static bool running = true;
@@ -59,12 +75,12 @@ static thread_type thread;
 static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
 static void *output_thread();
-
+extern void wait_for_frames(size_t frames, uint8_t pct);
 
 /****************************************************************************************
  * set output volume
  */
-void set_volume(unsigned left, unsigned right) {
+void set_volume_dac(unsigned left, unsigned right) {
 	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
 	LOCK;
 	output.gainL = left;
@@ -83,7 +99,7 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 	LOG_DEBUG("Setting output parameters.");
 
 	memset(&output, 0, sizeof(output));
-
+#ifdef CONFIG_I2S_BITS_PER_CHANNEL
 	switch (CONFIG_I2S_BITS_PER_CHANNEL) {
 		case 24:
 			output.format = S24_BE;
@@ -98,6 +114,9 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 			LOG_ERROR("Unsupported bit depth %d",CONFIG_I2S_BITS_PER_CHANNEL);
 			break;
 	}
+#else
+	output.format = S16_LE;
+#endif
 	// ensure output rate is specified to avoid test open
 	if (!rates[0]) {
 		rates[0] = 44100;
@@ -227,13 +246,7 @@ static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 }
 
 
-/****************************************************************************************
- * Wait for a duration based on a frame count
- */
-void wait_for_frames(size_t frames)
-{
-	usleep((1000* frames/output.current_sample_rate*.90) );
-}
+
 
 /****************************************************************************************
  * Main output thread
@@ -393,7 +406,7 @@ static void *output_thread() {
 		/*
 		 * End Statistics reporting
 		 */
-		wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written));
+		wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written),75);
 	}
 
 
