@@ -46,6 +46,9 @@
 #define POSIX 1
 #include "embedded.h"
 #endif
+#ifndef PTHREAD_SET_NAME
+#define PTHREAD_SET_NAME(n)
+#endif
 
 // build detection
 #if defined(linux)
@@ -334,6 +337,10 @@ typedef int64_t   s64_t;
 #define mutex_lock(m) pthread_mutex_lock(&m)
 #define mutex_unlock(m) pthread_mutex_unlock(&m)
 #define mutex_destroy(m) pthread_mutex_destroy(&m)
+#define mutex_broadcast_cond(m) pthread_cond_broadcast(&m)
+#define mutex_cond_wait(c,m) pthread_cond_wait(&c, &m)
+#define mutex_cond_init(c) pthread_cond_init(&c, NULL)
+#define thread_cond_type pthread_cond_t
 #define thread_type pthread_t
 
 #endif
@@ -765,6 +772,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_bt(void);
 void hal_bluetooth_init(log_level loglevel);
+void output_bt_check_buffer();
 #endif
 
 

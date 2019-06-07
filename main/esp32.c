@@ -27,19 +27,63 @@
 #include "esp_avrc_api.h"
 #include "esp_pthread.h"
 #include "pthread.h"
+
+const char *  art_a2dp_connected[]={"\n\n",
+		"           ___  _____  _____     _____                            _           _ _ \n",
+		"     /\\   |__ \\|  __ \\|  __ \\   / ____|                          | |         | | |\n",
+		"    /  \\     ) | |  | | |__) | | |     ___  _ __  _ __   ___  ___| |_ ___  __| | |\n",
+		"   / /\\ \\   / /| |  | |  ___/  | |    / _ \\| '_ \\| '_ \\ / _ \\/ __| __/ _ \\/ _` | |\n",
+		"  / ____ \\ / /_| |__| | |      | |___| (_) | | | | | | |  __/ (__| ||  __/ (_| |_|\n",
+		" /_/    \\_\\____|_____/|_|       \\_____\\___/|_| |_|_| |_|\\___|\\___|\\__\\___|\\__,_(_)\n\n",
+		"\0"};
+const char * art_a2dp_connecting[]= {"\n\n",
+		 "           ___  _____  _____     _____                            _   _                   \n",
+		 "     /\\   |__ \\|  __ \\|  __ \\   / ____|                          | | (_)                  \n",
+		 "    /  \\     ) | |  | | |__) | | |     ___  _ __  _ __   ___  ___| |_ _ _ __   __ _       \n",
+		 "   / /\\ \\   / /| |  | |  ___/  | |    / _ \\| '_ \\| '_ \\ / _ \\/ __| __| | '_ \\ / _` |      \n",
+		 "  / ____ \\ / /_| |__| | |      | |___| (_) | | | | | | |  __/ (__| |_| | | | | (_| |_ _ _ \n",
+		 " /_/    \\_\\____|_____/|_|       \\_____\\___/|_| |_|_| |_|\\___|\\___|\\__|_|_| |_|\\__, (_|_|_)\n",
+		 "                                                                               __/ |       \n",
+		 "                                                                              |___/        \n\n",
+		 "\0"};
+
+char * get_output_state_desc(output_state state){
+	switch (state) {
+	case OUTPUT_OFF:
+		return STR(OUTPUT_OFF);
+	case OUTPUT_STOPPED:
+		return STR(OUTPUT_STOPPED);
+	case OUTPUT_BUFFER:
+		return STR(OUTPUT_BUFFER);
+	case OUTPUT_RUNNING:
+		return STR(OUTPUT_RUNNING);
+	case OUTPUT_PAUSE_FRAMES:
+		return STR(OUTPUT_PAUSE_FRAMES);
+	case OUTPUT_SKIP_FRAMES:
+		return STR(OUTPUT_SKIP_FRAMES);
+	case OUTPUT_START_AT:
+		return STR(OUTPUT_START_AT);
+	default:
+		return "OUTPUT_UNKNOWN_STATE";
+	}
+	return "";
+}
 #define BT_AV_TAG               "BT_AV"
 extern log_level loglevel;
 extern struct outputstate output;
 extern struct buffer *outputbuf;
-extern struct buffer *streambuf;
+#ifdef USE_BT_RING_BUFFER
+#define LOCK_BT   mutex_lock(btbuf->mutex)
+#define UNLOCK_BT mutex_unlock(btbuf->mutex)
 extern struct buffer *btbuf;
-
+#else
+extern uint8_t * btout;
+#endif
 time_t disconnect_time=0;
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
-#define LOCK_BT   mutex_lock(btbuf->mutex)
-#define UNLOCK_BT mutex_unlock(btbuf->mutex)
 int64_t connecting_timeout = 0;
+
 #ifndef CONFIG_A2DP_SINK_NAME
 #define CONFIG_A2DP_SINK_NAME "btspeaker" // fix some compile errors when BT is not chosen
 #endif
@@ -52,19 +96,24 @@ int64_t connecting_timeout = 0;
 #ifndef CONFIG_A2DP_CONTROL_DELAY_MS
 #define CONFIG_A2DP_CONTROL_DELAY_MS 1000
 #endif
+
+static void bt_app_av_state_connecting(uint16_t event, void *param);
+
 #define A2DP_TIMER_INIT connecting_timeout = esp_timer_get_time() +(CONFIG_A2DP_CONNECT_TIMEOUT_MS * 1000)
 #define IS_A2DP_TIMER_OVER esp_timer_get_time() >= connecting_timeout
 
 #define FRAME_TO_BYTES(f) f*BYTES_PER_FRAME
 #define BYTES_TO_FRAME(b) b/BYTES_PER_FRAME
-#define FRAMES_TO_MS(f) 1000*f/output.current_sample_rate
-#define BYTES_TO_MS(b) FRAMES_TO_MS(BYTES_TO_FRAME(b))
 
-//#define SET_MIN_MAX(val,var) var=val; if(var<min_##var) min_##var=var; if(var>max_##var) max_##var=var
-//#define RESET_MIN_MAX(var,mv) min_##var=mv##_MAX; max_##var=mv##_MIN
-//#define DECLARE_MIN_MAX(var,t,mv) static t min_##var = mv##_MAX, max_##var = mv##_MIN; t var=0
-#define DECLARE_ALL_MIN_MAX DECLARE_MIN_MAX(req, long,LONG); DECLARE_MIN_MAX(rec, long,LONG); DECLARE_MIN_MAX(bt, long,LONG);DECLARE_MIN_MAX(lock_bt_time, long,LONG);DECLARE_MIN_MAX(under, long,LONG);DECLARE_MIN_MAX(o, long,LONG);
-#define RESET_ALL_MIN_MAX RESET_MIN_MAX(req,LONG); RESET_MIN_MAX(rec,LONG); RESET_MIN_MAX(bt,LONG);RESET_MIN_MAX(lock_bt_time,LONG);RESET_MIN_MAX(under,LONG);RESET_MIN_MAX(o,LONG);
+
+#define RESET_ALL_MIN_MAX RESET_MIN_MAX(req); RESET_MIN_MAX(rec); RESET_MIN_MAX(bt);RESET_MIN_MAX_DURATION(lock_bt_time);RESET_MIN_MAX(under); RESET_MIN_MAX_DURATION(lock_out_time)
+
+DECLARE_MIN_MAX(req);
+DECLARE_MIN_MAX(rec);
+DECLARE_MIN_MAX(bt);
+DECLARE_MIN_MAX_DURATION(lock_bt_time);
+DECLARE_MIN_MAX(under);
+DECLARE_MIN_MAX_DURATION(lock_out_time);
 
 static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param);
 
@@ -186,7 +235,6 @@ static esp_bd_addr_t s_peer_bda = {0};
 static uint8_t s_peer_bdname[ESP_BT_GAP_MAX_BDNAME_LEN + 1];
 static int s_a2d_state = APP_AV_STATE_IDLE;
 static int s_media_state = APP_AV_MEDIA_STATE_IDLE;
-static int s_intv_cnt = 0;
 static uint32_t s_pkt_cnt = 0;
 
 static TimerHandle_t s_tmr;
@@ -198,6 +246,7 @@ void hal_bluetooth_init(log_level level)
 	 * Bluetooth audio source init Start
 	 */
 	loglevel = level;
+	bt_set_log_level(level);
 	//running_test = false;
 	ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_BLE));
 
@@ -244,27 +293,23 @@ void hal_bluetooth_init(log_level level)
 	esp_bt_gap_set_pin(pin_type, 0, pin_code);
 
 }
-DECLARE_ALL_MIN_MAX ;
-
 static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 {
-	static int count = 0;
-	unsigned avail_data=0,wanted_len=0;
+#ifdef USE_BT_RING_BUFFER
+	int32_t avail_data=0,wanted_len=0, start_timer=0;
 
 	if (len < 0 || data == NULL ) {
         return 0;
     }
 
 
-	//
 	// This is how the BTC layer calculates the number of bytes to
 	// for us to send. (BTC_SBC_DEC_PCM_DATA_LEN * sizeof(OI_INT16) - availPcmBytes
-
 	wanted_len=len;
-
-	SET_MIN_MAX(len/BYTES_PER_FRAME,req);
+	TIME_MEASUREMENT_START(start_timer);
+	SET_MIN_MAX(len,req);
 	LOCK_BT;
-	SET_MIN_MAX(_buf_used(btbuf)/BYTES_PER_FRAME,bt);
+	SET_MIN_MAX_SIZED(_buf_used(btbuf),bt,btbuf->size);
 	do {
 
 		avail_data=min(_buf_cont_read(btbuf),wanted_len);
@@ -275,54 +320,57 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 			data+=avail_data;
 		}
 		else {
-	//		SET_MIN_MAX(wanted_len, under);
-			//LOG_WARN("BT Buffering underrun! %7d bytes Requested, %7d bytes missing.", len,wanted_len);
-//			LOG_INFO( "count:%d, current sample rate: %d",count,output.current_sample_rate);
-//			LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
-//					LOG_INFO( "                    max |      min |    current|  |      max |      min |        current |");
-//					LOG_INFO( "                   (ms) |     (ms) |       (ms)|  |  (bytes) |  (bytes) |        (bytes) |");
-//					LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
-//					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
-//					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-//					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("available",bt));
-//					LOG_INFO("              ----------+----------+-----------+  +----------+----------+----------------+");
-		//			LOG_INFO("");
-		//			LOG_INFO("              max (us)  | min (us) |current(us)|  ");
-		//			LOG_INFO("              ----------+----------+-----------+  ");
-		//			LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Buffering(us)",buffering));
-		//			LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("i2s tfr(us)",i2s_time));
-		//			LOG_INFO("              ----------+----------+-----------+  ");
-
-			RESET_ALL_MIN_MAX;
+			assert(wanted_len>0);
+			assert(avail_data==0);
+			SET_MIN_MAX(wanted_len, under);
 		}
 	} while (wanted_len > 0 && avail_data != 0);
-	UNLOCK_BT;
-	SET_MIN_MAX((len-wanted_len)/BYTES_PER_FRAME, rec);
-	SET_MIN_MAX(wanted_len/BYTES_PER_FRAME, under);
-	SET_MIN_MAX(_buf_used(outputbuf)/BYTES_PER_FRAME,o);
-	LOCK;
-	   	output.device_frames = 0;
-	   	output.updated = gettime_ms();
-	   	output.frames_played_dmp = output.frames_played;
-	UNLOCK;
-	//count++;
-//	TIMED_SECTION_START(5000);
-//		//LOG_INFO( "count:%d, current sample rate: %d, bytes per frame: %d",count,output.current_sample_rate);
-//		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
-//		LOG_INFO( "                    max |      min |    current|  |      max |      min |        current |");
-//		LOG_INFO( "                   (ms) |     (ms) |       (ms)|  |  (bytes) |  (bytes) |        (bytes) |");
-//		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
-//		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
-//		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("available",bt));
-//		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
-//		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-//		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("underrun",under));
-//		LOG_INFO("              ----------+----------+-----------+  +----------+----------+----------------+");
-//		RESET_ALL_MIN_MAX;
-//	TIMED_SECTION_END;
-	return len-wanted_len;
-}
 
+	UNLOCK_BT;
+	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_bt_time);
+	SET_MIN_MAX((len-wanted_len), rec);
+	TIME_MEASUREMENT_START(start_timer);
+	output_bt_check_buffer();
+	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);
+	return len-wanted_len;
+
+#else
+	int32_t avail_data=0,wanted_len=0, start_timer=0;
+
+	if (len < 0 || data == NULL ) {
+		return 0;
+	}
+	btout=data;
+
+	// This is how the BTC layer calculates the number of bytes to
+	// for us to send. (BTC_SBC_DEC_PCM_DATA_LEN * sizeof(OI_INT16) - availPcmBytes
+	wanted_len=len;
+	SET_MIN_MAX(len,req);
+	TIME_MEASUREMENT_START(start_timer);
+	LOCK;
+	SET_MIN_MAX_SIZED(_buf_used(outputbuf),bt,outputbuf->size);
+	do {
+
+		avail_data = _output_frames( wanted_len/BYTES_PER_FRAME )*BYTES_PER_FRAME; // Keep the transfer buffer full
+		wanted_len-=avail_data;
+	} while (wanted_len > 0 && avail_data != 0);
+	if(wanted_len>0)
+	{
+		SET_MIN_MAX(wanted_len, under);
+	}
+	output.device_frames = 0; // todo: check if this is the right way do to this.
+	output.updated = gettime_ms();
+	output.frames_played_dmp = output.frames_played;
+	UNLOCK;
+	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);
+	SET_MIN_MAX((len-wanted_len), rec);
+	TIME_MEASUREMENT_START(start_timer);
+	output_bt_check_buffer();
+
+	return len-wanted_len;
+
+#endif
+}
 static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 {
     bt_app_work_dispatch(bt_app_av_sm_hdlr, event, param, sizeof(esp_a2d_cb_param_t), NULL);
@@ -423,10 +471,10 @@ static void bt_app_av_sm_hdlr(uint16_t event, void *param)
     //LOG_DEBUG("%s state %s, evt 0x%x, output state: %d", __func__, APP_AV_STATE_DESC[s_a2d_state], event, output.state);
     switch (s_a2d_state) {
     case APP_AV_STATE_DISCOVERING:
-    	LOG_SDEBUG("state %s, evt 0x%x, output state: %d", APP_AV_STATE_DESC[s_a2d_state], event, output.state);
+    	LOG_SDEBUG("state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, get_output_state_desc(output.state));
     	break;
     case APP_AV_STATE_DISCOVERED:
-    	LOG_SDEBUG("state %s, evt 0x%x, output state: %d", APP_AV_STATE_DESC[s_a2d_state], event, output.state);
+    	LOG_SDEBUG("state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, get_output_state_desc(output.state));
         break;
     case APP_AV_STATE_UNCONNECTED:
         bt_app_av_state_unconnected(event, param);
@@ -633,16 +681,22 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     esp_a2d_cb_param_t *a2d = NULL;
     LOCK;
     output_state out_state=output.state;
+    unsigned start_frames = output.start_frames;
     UNLOCK;
-	unsigned bt_buffer_used=_buf_used(btbuf);
+#ifdef USE_BT_RING_BUFFER
+    LOCK_BT;
+    unsigned bt_buffer_used=_buf_used(btbuf);
+    UNLOCK_BT;
+#endif
     switch (s_media_state) {
     case APP_AV_MEDIA_STATE_IDLE: {
     	if (event == BT_APP_HEART_BEAT_EVT) {
-            if(out_state > OUTPUT_STOPPED)
+            if(out_state > OUTPUT_OFF)
             {
-            	LOG_INFO("buffering output, a2dp media ready and connected. Starting checking if ready...");
+            	LOG_INFO("Output state is %s, a2dp media ready and connected. Checking if A2DP is ready.", get_output_state_desc(out_state));
             	esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY);
             }
+
         } else if (event == ESP_A2D_MEDIA_CTRL_ACK_EVT) {
         	a2d = (esp_a2d_cb_param_t *)(param);
 			if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY &&
@@ -656,21 +710,39 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     }
     case APP_AV_MEDIA_STATE_BUFFERING: {
       	if (event == BT_APP_HEART_BEAT_EVT) {
-             if(out_state > OUTPUT_BUFFER ){
-            	 // Buffer is ready, local buffer has some data, start playback!
+      		switch (out_state) {
+				case OUTPUT_RUNNING :
+				case OUTPUT_PAUSE_FRAMES :
+				case OUTPUT_SKIP_FRAMES:
+				case OUTPUT_START_AT:
+#ifndef USE_BT_RING_BUFFER
+				case OUTPUT_BUFFER:
+#endif
+	            	 // Buffer is ready, local buffer has some data, start playback!
+					LOG_INFO("Buffering complete, out state is %s, a2dp media ready and connected. Starting playback! ", get_output_state_desc(out_state));
+					s_media_state = APP_AV_MEDIA_STATE_STARTING;
+					esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_START);
+#ifdef USE_BT_RING_BUFFER
+					break;
 
-            	 // ensure that we can get a lock on the buffer.
-            	 // when we release start, the data call back
-            	 // will be begging for data
-				LOG_INFO("Buffering complete, a2dp media ready and connected. Starting playback! ");
-				s_media_state = APP_AV_MEDIA_STATE_STARTING;
-				esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_START);
-				LOG_INFO("Signaling of ESP_A2D_MEDIA_CTRL_START complete. ");
-             }
-             else{
-            	 LOG_INFO("Buffering... BT Buffer: %d bytes ",bt_buffer_used);
-             }
+					case OUTPUT_BUFFER:
 
+					LOG_DEBUG("Buffering... BT Buffer: %d bytes. Start threshold: %u,  ",bt_buffer_used, start_frames*BYTES_PER_FRAME);
+#endif
+					break;
+				case OUTPUT_STOPPED:
+				case OUTPUT_OFF:
+					LOG_DEBUG("Output state is %s. Changing app status to ",get_output_state_desc(out_state));
+	                s_media_state = APP_AV_MEDIA_STATE_STOPPING;
+	                esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
+#ifdef USE_BT_RING_BUFFER
+	                output_bt_check_buffer();
+#endif
+	                break;
+				default:
+					LOG_ERROR("Unknown output status while waiting for buffering to complete %d",out_state);
+					break;
+			}
           }
       	else{
       		LOG_WARN("Received unknown event while in state APP_AV_MEDIA_STATE_BUFFERING");
@@ -686,7 +758,6 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
             if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_START &&
                     a2d->media_ctrl_stat.status == ESP_A2D_MEDIA_CTRL_ACK_SUCCESS) {
                 LOG_INFO("a2dp media started successfully.");
-                s_intv_cnt = 0;
                 s_media_state = APP_AV_MEDIA_STATE_STARTED;
             } else {
                 // not started succesfully, transfer to idle state
@@ -702,25 +773,32 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
                 LOG_INFO("Output state is stopped. Stopping a2dp media ...");
                 s_media_state = APP_AV_MEDIA_STATE_STOPPING;
                 esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
-                s_intv_cnt = 0;
+#ifdef USE_BT_RING_BUFFER
+				output_bt_check_buffer();
+#endif
             }
         	else
         	{
         		static time_t lastTime=0;
         		if (lastTime <= gettime_ms() )
 				{
-					lastTime = gettime_ms() + 5000;
-					//LOG_INFO( "count:%d, current sample rate: %d, bytes per frame: %d",count,output.current_sample_rate);
-					LOG_INFO( "              **********+**********+***********+***********+  +**********+**********+****************+****************+****************+");
-					LOG_INFO( "                    max |      min |       avg |    current|  |      max |      min |        average |          count |        current |");
-					LOG_INFO( "                   (ms) |     (ms) |       (ms)|      (ms) |  |  (bytes) |  (bytes) |        (bytes) |                |        (bytes) |");
-					LOG_INFO( "              **********+**********+***********+***********+  +**********+**********+****************+****************+****************+");
-					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
-					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("available",bt));
-					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
-					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-					LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("underrun",under));
-					LOG_INFO("              **********+**********+***********+***********+  +**********+**********+****************+****************+****************+");
+					lastTime = gettime_ms() + 15000;
+					LOG_DEBUG( "              +==========+==========+================+=====+================+");
+					LOG_DEBUG( "              |      max |      min |        average | avg |          count |");
+					LOG_DEBUG( "              |  (bytes) |  (bytes) |        (bytes) | pct |                |");
+					LOG_DEBUG( "              +==========+==========+================+=====+================+");
+					LOG_DEBUG(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("available",bt));
+					LOG_DEBUG(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
+					LOG_DEBUG(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
+					LOG_DEBUG(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("underrun",under));
+					LOG_DEBUG( "              +==========+==========+================+=====+================+");
+					LOG_DEBUG("\n");
+					LOG_DEBUG("              ==========+==========+===========+===========+  ");
+					LOG_DEBUG("              max (us)  | min (us) |   avg(us) |  count    |  ");
+					LOG_DEBUG("              ==========+==========+===========+===========+  ");
+					LOG_DEBUG(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("BT Buf Lock",lock_bt_time));
+					LOG_DEBUG(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Out Buf Lock",lock_out_time));
+					LOG_DEBUG("              ==========+==========+===========+===========+");
 					RESET_ALL_MIN_MAX;
 				}
 
@@ -771,9 +849,18 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 	switch (event) {
     case ESP_A2D_CONNECTION_STATE_EVT:
     	LOG_DEBUG_EVENT(ESP_A2D_CONNECTION_STATE_EVT);
+    	// this could happen if connection was established
+    	// right after we timed out. Pass the call down to the connecting
+    	// handler.
+    	esp_a2d_cb_param_t *a2d = (esp_a2d_cb_param_t *)(param);
+    	if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED){
+    		bt_app_av_state_connecting(event, param);
+    	}
+
     	break;
     case ESP_A2D_AUDIO_STATE_EVT:
     	LOG_DEBUG_EVENT(ESP_A2D_AUDIO_STATE_EVT);
+
     	break;
     case ESP_A2D_AUDIO_CFG_EVT:
     	LOG_DEBUG_EVENT(ESP_A2D_AUDIO_CFG_EVT);
@@ -794,16 +881,17 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 		case ESP_BLUEDROID_STATUS_ENABLED:
 			LOG_SDEBUG("BlueDroid Status is ESP_BLUEDROID_STATUS_ENABLED.");
 			break;
-			default:
-				break;
+		default:
+			break;
 		}
 //        if(out_state > OUTPUT_STOPPED){
         	// only attempt a connect when playback isn't stopped
-			if(esp_a2d_source_connect(s_peer_bda)!=ESP_ERR_INVALID_STATE) {
+			if(esp_a2d_source_connect(s_peer_bda)==ESP_OK) {
 				s_a2d_state = APP_AV_STATE_CONNECTING;
-				//esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
-				//LOG_INFO("squeezelite playback resumed. connecting to A2DP peer: %s", s_peer_bdname);
-				LOG_INFO("connecting to A2DP peer: %s", s_peer_bdname);
+				for(uint8_t l=0;art_a2dp_connecting[l][0]!='\0';l++){
+					LOG_INFO_NO_LF("%s",art_a2dp_connecting[l]);
+				}
+				LOG_INFO("********** A2DP CONNECTING TO %s", s_peer_bdname);
 				A2DP_TIMER_INIT;
 			}
 			else {
@@ -830,8 +918,12 @@ static void bt_app_av_state_connecting(uint16_t event, void *param)
         if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
             s_a2d_state =  APP_AV_STATE_CONNECTED;
             s_media_state = APP_AV_MEDIA_STATE_IDLE;
-            LOG_INFO("a2dp connected! Setting BT mode to non_connectable and non_discoverable. ");
+			for(uint8_t l=0;art_a2dp_connected[l][0]!='\0';l++){
+				LOG_INFO_NO_LF("%s",art_a2dp_connected[l]);
+			}
+			LOG_DEBUG("Setting scan mode to ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE");
             esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
+            LOG_DEBUG("Done setting scan mode. App state is now CONNECTED and media state IDLE.");
         } else if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
             s_a2d_state =  APP_AV_STATE_UNCONNECTED;
         }
@@ -888,7 +980,7 @@ static void bt_app_av_state_connected(uint16_t event, void *param)
     	LOG_DEBUG_EVENT(ESP_A2D_AUDIO_CFG_EVT);
         break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:{
-        	LOG_DEBUG_EVENT(ESP_A2D_MEDIA_CTRL_ACK_EVT);
+        	LOG_SDEBUG_EVENT(ESP_A2D_MEDIA_CTRL_ACK_EVT);
             bt_app_av_media_proc(event, param);
             break;
         }

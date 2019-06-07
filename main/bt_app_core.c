@@ -97,13 +97,18 @@ static void bt_app_task_handler(void *arg)
                 free(msg.param);
             }
         }
+        else
+        {
+        	LOG_DEBUG("No messaged received from queue.");
+        }
     }
 }
 
 void bt_app_task_start_up(void)
 {
     s_bt_app_task_queue = xQueueCreate(10, sizeof(bt_app_msg_t));
-    xTaskCreate(bt_app_task_handler, "BtAppT", 2048, NULL, configMAX_PRIORITIES - 3, &s_bt_app_task_handle);
+    assert(s_bt_app_task_queue!=NULL);
+    assert(xTaskCreate(bt_app_task_handler, "BtAppT", 2048, NULL, configMAX_PRIORITIES - 3, &s_bt_app_task_handle)==pdPASS);
     return;
 }
 

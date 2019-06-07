@@ -405,7 +405,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 #if LINUX || FREEBSD
 	touch_memory(streambuf->buf, streambuf->size);
 #endif
-
+PTHREAD_SET_NAME("stream");
 #if LINUX || OSX || FREEBSD || POSIX
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);

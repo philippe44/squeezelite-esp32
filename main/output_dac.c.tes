@@ -15,7 +15,6 @@ extern struct buffer *streambuf;
 #define FRAME_BLOCK MAX_SILENCE_FRAMES
 
 extern u8_t *silencebuf;
-extern u8_t *buf;
 
 #define I2S_NUM         (0)
 #define WAVE_FREQ_HZ    (100)
