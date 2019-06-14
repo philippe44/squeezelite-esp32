@@ -1,5 +1,8 @@
 
 #pragma once
+#include "time.h"
+#include "sys/time.h"
+#include "esp_system.h"
 #define PERF_MAX LONG_MAX
 #define MIN_MAX_VAL(x) x==PERF_MAX?0:x
 #define CURR_SAMPLE_RATE output.current_sample_rate>0?output.current_sample_rate:1
@@ -52,22 +55,14 @@
 static inline bool hasTimeElapsed(time_t delayMS, bool bforce)
 {
 	static time_t lastTime=0;
-	if (lastTime <= gettime_ms() ||bforce)
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	if (lastTime <= tv.tv_sec * 1000 + tv.tv_usec / 1000 ||bforce)
 	{
-		lastTime = gettime_ms() + delayMS;
+		lastTime = tv.tv_sec * 1000 + tv.tv_usec / 1000 + delayMS;
 		return true;
 	}
 	else
 		return false;
 }
-//#define MAX_PERF_NAME_LEN 10
-//#define MAX_PERF_FORMAT_LEN 12
-//typedef enum  {BUFFER_TYPE,DURATION_TYPE,LAST } perf_formats;
-//typedef struct _perf_stats {
-//	uint32_t min;
-//	uint32_t max;
-//	uint32_t current;
-//	char name[MAX_PERF_NAME_LEN+1];
-//	uint32_t timer_start;
-//	perf_formats fmt;
-//} perf_stats;
+

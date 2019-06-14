@@ -8,7 +8,8 @@
 
 #ifndef __BT_APP_CORE_H__
 #define __BT_APP_CORE_H__
-
+#include "esp_log.h"
+#include "time.h"
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -43,5 +44,5 @@ bool bt_app_work_dispatch(bt_app_cb_t p_cback, uint16_t event, void *p_params, i
 void bt_app_task_start_up(void);
 
 void bt_app_task_shut_down(void);
-void bt_set_log_level(log_level level);
+
 #endif /* __BT_APP_CORE_H__ */

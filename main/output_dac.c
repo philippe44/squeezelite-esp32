@@ -1,4 +1,3 @@
-
 #include "squeezelite.h"
 #include "driver/i2s.h"
 #include "perf_trace.h"
@@ -52,7 +51,7 @@ extern struct buffer *outputbuf;
 extern u8_t *silencebuf;
 static struct buffer _dac_buffer_structure;
 struct buffer *dacbuffer=&_dac_buffer_structure;
-
+u8_t *tfr_buffer;
 static i2s_config_t i2s_config;
 #if REPACK && BYTES_PER_FRAMES == 4
 #error "REPACK is not compatible with BYTES_PER_FRAME=4"
@@ -120,6 +119,10 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 		rates[0] = 44100;
 	}
 	running=true;
+
+	// todo: move this to a hardware abstraction layer
+	//hal_dac_init(device);
+
 	// get common output configuration details
 	output_init_common(level, device, output_buf_size, rates, idle);
 
@@ -153,10 +156,11 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 
 	dac_buffer_size = 10*FRAME_BLOCK*get_bytes_per_frame(output.format);
 	LOG_DEBUG("Allocating local DAC transfer buffer of %u bytes.",dac_buffer_size);
+
 	buf_init(dacbuffer,dac_buffer_size );
 	if (!dacbuffer->buf) {
 		LOG_ERROR("unable to malloc i2s buffer");
-		exit(0);
+		local_exit(0);
 	}
 
 PTHREAD_SET_NAME("output_dac");
@@ -167,7 +171,7 @@ PTHREAD_SET_NAME("output_dac");
 #ifdef PTHREAD_STACK_MIN
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
 #endif
-	pthread_create(&thread, &attr, output_thread, NULL);
+	pthread_create(&thread, &attr, output_thread_dac, NULL);
 	pthread_attr_destroy(&attr);
 #endif
 #if WIN
@@ -249,7 +253,7 @@ static int _dac_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 /****************************************************************************************
  * Main output thread
  */
-static void *output_thread() {
+static void *output_thread_dac() {
 	frames_t frames=0;
 	frames_t available_frames_space=0;
 	size_t bytes_to_send_i2s=0, // Contiguous buffer which can be addressed
@@ -280,27 +284,22 @@ static void *output_thread() {
 			continue;
 		}
 		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
-		available_frames_space = BYTES_TO_FRAME(min(_buf_space(dacbuffer), _buf_cont_write(dacbuffer)));
+		available_frames_space = min(BYTES_TO_FRAME(min(_buf_space(dacbuffer), _buf_cont_write(dacbuffer))),FRAME_BLOCK);
 		frames = _output_frames( available_frames_space ); // Keep the transfer buffer full
 		UNLOCK;
 		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
 		SET_MIN_MAX( available_frames_space,req);
 		SET_MIN_MAX(frames,rec);
-		if(frames>0){
-				//LOG_DEBUG("Frames available : %u.",frames);
-		}
-		else
-		{
-			//LOG_DEBUG("No frame available");
-			usleep(10000);
-		}
 
-		SET_MIN_MAX(_buf_used(dacbuffer),loci2sbuf);
+
+		SET_MIN_MAX_SIZED(_buf_used(dacbuffer),loci2sbuf,dacbuffer->size);
 		bytes_to_send_i2s = _buf_cont_read(dacbuffer);
 		SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
-		if (bytes_to_send_i2s>0  )
+		int pass=0;
+		while (bytes_to_send_i2s>0 && pass++ < 1 )
 		{
+			// now pass twice
 			TIME_MEASUREMENT_START(timer_start);
 			if(!isI2SStarted)
 			{
@@ -332,11 +331,19 @@ static void *output_thread() {
 			output.updated = gettime_ms();
 			output.frames_played_dmp = output.frames_played;
 			SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
-
+			bytes_to_send_i2s = _buf_cont_read(dacbuffer);
 		}
+//		if(frames>0){
+//				//LOG_DEBUG("Frames available : %u.",frames);
+//		}
+//		else
+//		{
+//			//LOG_DEBUG("No frame available");
+//			usleep(10000);
+//		}
 		SET_MIN_MAX(bytes_to_send_i2s-i2s_bytes_written,over);
-		SET_MIN_MAX(_buf_used(outputbuf),o);
-		SET_MIN_MAX(_buf_used(streambuf),s);
+		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
+		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 
 		/*
 		 * Statistics reporting
@@ -352,24 +359,29 @@ static void *output_thread() {
 		TIMED_SECTION_START_MS(STATS_PERIOD_MS);
 
 		LOG_INFO( "count:%d, current sample rate: %d, bytes per frame: %d, avg cycle duration (ms): %d",count,output.current_sample_rate, out_bytes_per_frame,STATS_PERIOD_MS/count);
-		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
-		LOG_INFO( "                    max |      min |    current|  |      max |      min |        current |");
-		LOG_INFO( "                   (ms) |     (ms) |       (ms)|  |  (bytes) |  (bytes) |        (bytes) |");
-		LOG_INFO( "              ----------+----------+-----------+  +----------+----------+----------------+");
+		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD1);
+		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD2);
+		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD3);
+		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD4);
 		LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
 		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
 		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("local free",loci2sbuf));
+		LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
+		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
 		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
 		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
 		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
-		LOG_INFO("              ----------+----------+-----------+  +----------+----------+----------------+");
+		LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
 		LOG_INFO("");
-		LOG_INFO("              max (us)  | min (us) |current(us)|  ");
-		LOG_INFO("              ----------+----------+-----------+  ");
+		LOG_INFO("              ----------+----------+-----------+-----------+  ");
+		LOG_INFO("              max (us)  | min (us) |   avg(us) |  count    |  ");
+		LOG_INFO("              ----------+----------+-----------+-----------+  ");
 		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Buffering(us)",buffering));
 		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("i2s tfr(us)",i2s_time));
-		LOG_INFO("              ----------+----------+-----------+  ");
+		LOG_INFO("              ----------+----------+-----------+-----------+");
+
+
+
 		RESET_ALL_MIN_MAX;
 		count=0;
 		TIMED_SECTION_END;
@@ -377,7 +389,7 @@ static void *output_thread() {
 		 * End Statistics reporting
 		 */
 //		wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written),75);
-
+	}
 	return 0;
 }
 

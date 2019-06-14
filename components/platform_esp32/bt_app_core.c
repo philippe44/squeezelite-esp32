@@ -5,35 +5,31 @@
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
 */
-#include "squeezelite.h"
-#include <stdint.h>
 
+#include <stdint.h>
+#include "bt_app_core.h"
+#include "esp_system.h"
 #include <string.h>
 #include <stdbool.h>
+#include "esp_log.h"
 #include "freertos/xtensa_api.h"
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
-#include "esp_log.h"
-#include "bt_app_core.h"
+
+static const char * TAG = "platform_esp32";
 
 static void bt_app_task_handler(void *arg);
 static bool bt_app_send_msg(bt_app_msg_t *msg);
 static void bt_app_work_dispatched(bt_app_msg_t *msg);
 
-static log_level loglevel;
-
 static xQueueHandle s_bt_app_task_queue = NULL;
 static xTaskHandle s_bt_app_task_handle = NULL;
 
-
-void bt_set_log_level(log_level level){
-	loglevel = level;
-}
 bool bt_app_work_dispatch(bt_app_cb_t p_cback, uint16_t event, void *p_params, int param_len, bt_app_copy_cb_t p_copy_cback)
 {
-	LOG_SDEBUG("%s event 0x%x, param len %d", __func__, event, param_len);
+	ESP_LOGV(TAG,"%s event 0x%x, param len %d", __func__, event, param_len);
 
     bt_app_msg_t msg;
     memset(&msg, 0, sizeof(bt_app_msg_t));
@@ -65,7 +61,7 @@ static bool bt_app_send_msg(bt_app_msg_t *msg)
     }
 
     if (xQueueSend(s_bt_app_task_queue, msg, 10 / portTICK_RATE_MS) != pdTRUE) {
-    	LOG_ERROR("%s xQueue send failed", __func__);
+    	ESP_LOGE(TAG,"%s xQueue send failed", __func__);
         return false;
     }
     return true;
@@ -83,13 +79,13 @@ static void bt_app_task_handler(void *arg)
     bt_app_msg_t msg;
     for (;;) {
         if (pdTRUE == xQueueReceive(s_bt_app_task_queue, &msg, (portTickType)portMAX_DELAY)) {
-        	LOG_SDEBUG("%s, sig 0x%x, 0x%x", __func__, msg.sig, msg.event);
+        	ESP_LOGV(TAG,"%s, sig 0x%x, 0x%x", __func__, msg.sig, msg.event);
             switch (msg.sig) {
             case BT_APP_SIG_WORK_DISPATCH:
                 bt_app_work_dispatched(&msg);
                 break;
             default:
-                LOG_WARN("%s, unhandled sig: %d", __func__, msg.sig);
+                ESP_LOGW(TAG,"%s, unhandled sig: %d", __func__, msg.sig);
                 break;
             } // switch (msg.sig)
 
@@ -99,13 +95,14 @@ static void bt_app_task_handler(void *arg)
         }
         else
         {
-        	LOG_DEBUG("No messaged received from queue.");
+        	ESP_LOGW(TAG,"No messaged received from queue.");
         }
     }
 }
 
 void bt_app_task_start_up(void)
 {
+
     s_bt_app_task_queue = xQueueCreate(10, sizeof(bt_app_msg_t));
     assert(s_bt_app_task_queue!=NULL);
     assert(xTaskCreate(bt_app_task_handler, "BtAppT", 2048, NULL, configMAX_PRIORITIES - 3, &s_bt_app_task_handle)==pdPASS);

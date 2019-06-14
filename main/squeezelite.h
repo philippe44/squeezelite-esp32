@@ -342,8 +342,13 @@ typedef int64_t   s64_t;
 #define mutex_cond_init(c) pthread_cond_init(&c, NULL)
 #define thread_cond_type pthread_cond_t
 #define thread_type pthread_t
-
 #endif
+#ifdef EMBEDDED
+#define local_exit(r) {static int ret=r; pthread_exit(&ret);}
+#else
+#define local_exit(r) exit(r)
+#endif
+
 
 #if WIN
 
@@ -658,10 +663,8 @@ typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNIN
 #if DSD
 typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
 typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_BE } output_format;
-#elif CONFIG_DACAUDIO
-typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, S24_BE, S24_3BE, S16_BE, S8_BE } output_format;
 #else
-typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE } output_format;
+typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, S24_BE, S24_3BE, S16_BE, S8_BE } output_format;
 #endif
 extern uint8_t get_bytes_per_frame(output_format fmt);
 
@@ -757,23 +760,20 @@ void _pa_open(void);
 #endif
 
 // output_dac.c
-#if CONFIG_DACAUDIO
+
 void set_volume_dac(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_dac(void);
-void hal_bluetooth_init(log_level loglevel);
-#endif
+void hal_dac_init(const char * options);
 
 //output_bt.c
-#if  CONFIG_BTAUDIO
 void set_volume_bt(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
 void output_close_bt(void);
-void hal_bluetooth_init(log_level loglevel);
+extern void hal_bluetooth_init(const char * options);
 void output_bt_check_buffer();
-#endif
 
 
 // output_stdout.c

@@ -373,7 +373,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	buf_init(streambuf, stream_buf_size);
 	if (streambuf->buf == NULL) {
 		LOG_ERROR("unable to malloc buffer");
-		exit(0);
+		local_exit(0);
 	}
 	
 #if USE_SSL

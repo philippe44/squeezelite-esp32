@@ -374,7 +374,7 @@ int main(int argc, char **argv) {
 		} else {
 			fprintf(stderr, "\nOption error: -%s\n\n", opt);
 			usage(argv[0]);
-			exit(1);
+			local_exit(1);
 		}
 
 		switch (opt[0]) {
@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
 				} else {
 					fprintf(stderr, "\nDebug settings error: -d %s\n\n", optarg);
 					usage(argv[0]);
-					exit(1);
+					local_exit(1);
 				}
 			}
 			break;
@@ -668,10 +668,12 @@ int main(int argc, char **argv) {
 #endif
 		case 't':
 			license();
-			exit(0);
+			local_exit(0);
+			break; // mute compiler warning
 		case '?':
 			usage(argv[0]);
-			exit(0);
+			local_exit(0);
+			break; // mute compiler warning
 		default:
 			fprintf(stderr, "Arg error: %s\n", argv[optind]);
 			break;
@@ -682,7 +684,7 @@ int main(int argc, char **argv) {
 	if (optind < argc) {
 		fprintf(stderr, "\nError: command line argument error\n\n");
 		usage(argv[0]);
-		exit(1);
+		local_exit(1);
 	}
 
 	signal(SIGINT, sighandler);
@@ -748,11 +750,13 @@ int main(int argc, char **argv) {
 #endif
 
 	stream_init(log_stream, stream_buf_size);
-
-#if CONFIG_BTAUDIO
+#ifdef EMBEDDED
+if(strstr(output_device,"BT")!=NULL || strstr(output_device,"bt")!=NULL) {
 	output_init_bt(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
-#elif CONFIG_DACAUDIO
+}
+else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
 	output_init_dac(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
+}
 #else
 	if (!strcmp(output_device, "-")) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
@@ -793,7 +797,7 @@ int main(int argc, char **argv) {
 
 	if (name && namefile) {
 		fprintf(stderr, "-n and -N option should not be used at same time\n");
-		exit(1);
+		local_exit(1);
 	}
 
 	slimproto(log_slimproto, server, mac, name, namefile, modelname, maxSampleRate);
@@ -837,5 +841,5 @@ int main(int argc, char **argv) {
 	free_ssl_symbols();
 #endif	
 
-	exit(0);
+	local_exit(0);
 }

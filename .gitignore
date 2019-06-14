@@ -32,7 +32,6 @@
 
 # Build files with potential private info
 build/
-sdkconfig
 sdkconfig.old
 
 # =========================
@@ -64,3 +63,4 @@ $RECYCLE.BIN/
 *.save
 libs/
 
+/cdump.cmd

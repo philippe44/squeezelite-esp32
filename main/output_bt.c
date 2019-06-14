@@ -33,7 +33,7 @@ uint8_t * btout;
 #define FRAME_BLOCK MAX_SILENCE_FRAMES
 extern u8_t *silencebuf;
 
-void hal_bluetooth_init(log_level);
+extern void hal_bluetooth_init(const char * options);
 
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
@@ -134,11 +134,11 @@ void output_init_bt(log_level level, char *device, unsigned output_buf_size, cha
 	if (!rates[0]) {
 		rates[0] = 44100;
 	}
-	hal_bluetooth_init(loglevel);
+	hal_bluetooth_init(device);
 /*
  * Bluetooth audio source init Start
  */
-	device = CONFIG_OUTPUT_NAME;
+//	device = CONFIG_OUTPUT_NAME;
 	output_init_common(level, device, output_buf_size, rates, idle);
 #ifdef USE_BT_RING_BUFFER
 	LOG_DEBUG("Allocating local BT transfer buffer of %u bytes.",bt_buffer_size);

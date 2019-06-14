@@ -132,13 +132,14 @@ menu "Squeezelite-ESP32"
 			default ""
 		    default "BT" if BTAUDIO
 		    default "DAC" if DACAUDIO
+		    
 		config OUTPUT_RATES
 			string "Output rates"
 			default "48000,44100"
 			help
-				<rates>[:<delay>]	Sample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms  
-    	if DACAUDIO
-		    config I2S_NUM         
+				<rates>[:<delay>]	Sample rates supported, allows output to be off when squeezelite is started; rates = <maxrate>|<minrate>-<maxrate>|<rate1>,<rate2>,<rate3>; delay = optional delay switching rates in ms
+		menu "DAC I2S settings"  
+	    	config I2S_NUM         
 		        int "I2S channel (0 or 1). "
 		        default 0
 		        help
@@ -174,8 +175,8 @@ menu "Squeezelite-ESP32"
 			    default 16 if I2S_BITS_PER_CHANNEL_16
 			    default 24 if I2S_BITS_PER_CHANNEL_24
 			    default 8 if I2S_BITS_PER_CHANNEL_8
-		endif # DACAUDIO
-		if BTAUDIO
+		endmenu
+		menu "A2DP settings"
 		    config A2DP_SINK_NAME
 		        string "Name of Bluetooth A2DP device"
 		        default "SMSL BT4.2"
@@ -196,14 +197,14 @@ menu "Squeezelite-ESP32"
 		        default 1000
 		        help
 		            Increasing this value will give more chance for less stable connections to be established.	   
-            config A2DP_DISCONNECT_MS
-            	int "Time in ms before disconnecting from A2DP audio sink. Set to 0 for no disconnect."
-            	default 10000
-            	help
-            		Controls how long to wait before disconnecting from the A2DP audio sink after playback is stopped
-            		Longer delay will ensure better responsiveness at the expense of locking the audio sink for a longer period. 
-            		A shorter period may cause the player to disconnect between tracks change.
-		endif # BTAUDIO   
+	        config A2DP_DISCONNECT_MS
+	        	int "Time in ms before disconnecting from A2DP audio sink. Set to 0 for no disconnect."
+	        	default 10000
+	        	help
+	        		Controls how long to wait before disconnecting from the A2DP audio sink after playback is stopped
+	        		Longer delay will ensure better responsiveness at the expense of locking the audio sink for a longer period. 
+	        		A shorter period may cause the player to disconnect between tracks change.
+		endmenu
 	endmenu
 
 endmenu

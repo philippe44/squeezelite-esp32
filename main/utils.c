@@ -578,7 +578,6 @@ uint8_t get_bytes_per_frame(output_format fmt)
 		case S16_LE:
 			bpf=2*2;
 			break;
-#if CONFIG_DACAUDIO
 		case S24_BE:
 			bpf=3*2;
 			break;
@@ -591,7 +590,6 @@ uint8_t get_bytes_per_frame(output_format fmt)
 		case S8_BE:
 			bpf=2*2;
 			break;
-#endif
 #if DSD
 		case U8:
 			bpf=1*2;
@@ -622,4 +620,25 @@ extern struct outputstate output;
 void wait_for_frames(size_t frames, uint8_t pct)
 {
 	usleep((1000* frames/output.current_sample_rate*pct/100) );
+}
+char * get_output_state_desc(output_state state){
+	switch (state) {
+	case OUTPUT_OFF:
+		return STR(OUTPUT_OFF);
+	case OUTPUT_STOPPED:
+		return STR(OUTPUT_STOPPED);
+	case OUTPUT_BUFFER:
+		return STR(OUTPUT_BUFFER);
+	case OUTPUT_RUNNING:
+		return STR(OUTPUT_RUNNING);
+	case OUTPUT_PAUSE_FRAMES:
+		return STR(OUTPUT_PAUSE_FRAMES);
+	case OUTPUT_SKIP_FRAMES:
+		return STR(OUTPUT_SKIP_FRAMES);
+	case OUTPUT_START_AT:
+		return STR(OUTPUT_START_AT);
+	default:
+		return "OUTPUT_UNKNOWN_STATE";
+	}
+	return "";
 }

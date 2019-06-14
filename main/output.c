@@ -352,13 +352,13 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	buf_init(outputbuf, output_buf_size);
 	if (!outputbuf->buf) {
 		LOG_ERROR("unable to malloc output buffer");
-		exit(0);
+		local_exit(0);
 	}
 
 	silencebuf = malloc(MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
 	if (!silencebuf) {
 		LOG_ERROR("unable to malloc silence buffer");
-		exit(0);
+		local_exit(0);
 	}
 	memset(silencebuf, 0, MAX_SILENCE_FRAMES * BYTES_PER_FRAME);
 
@@ -389,7 +389,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	else {
 		if (!test_open(output.device, output.supported_rates, user_rates)) {
 			LOG_ERROR("unable to open output device: %s", output.device);
-			exit(0);
+			local_exit(0);
 		}
 	}
 
