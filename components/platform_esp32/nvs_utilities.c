@@ -16,7 +16,40 @@
 
 extern char current_namespace[];
 static const char * TAG = "platform_esp32";
+bool isNameValid(char * key){
+	bool bFound=false;
+	nvs_handle nvs;
+	esp_err_t err;
+	int8_t val=0;
 
+	err = nvs_open(current_namespace, NVS_READONLY, &nvs);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG,"Error opening nvs storage for namespace %s",current_namespace);
+		return false;
+	}
+	err = nvs_get_i8(nvs, key,  &val);
+	if(err==ESP_OK || err== ESP_ERR_NVS_INVALID_LENGTH){
+		bFound=true;
+	}
+	else {
+		ESP_LOGD(TAG,"Search for key %s in namespace %s returned %#08X",key,current_namespace,err);
+	}
+//	 nvs_iterator_t it = nvs_entry_find(NVS_DEFAULT_PART_NAME, current_namespace, NVS_TYPE_ANY);
+//	  while (it != NULL) {
+//	          nvs_entry_info_t info;
+//	          nvs_entry_info(it, &info);
+//	          it = nvs_entry_next(it);
+//	          if(!strcmp(info.key,key)){
+//	        	  bFound=true;
+//	          }
+//	          printf("key '%s', type '%d' \n", info.key, info.type);
+//	  };
+//	  // Note: no need to release iterator obtained from nvs_entry_find function when
+//	  //       nvs_entry_find or nvs_entry_next function return NULL, indicating no other
+//	  //       element for specified criteria was found.
+	nvs_close(nvs);
+	  return bFound;
+}
 esp_err_t store_nvs_value(nvs_type_t type, const char *key, void * data) {
 	if (type == NVS_TYPE_BLOB)
 		return ESP_ERR_NVS_TYPE_MISMATCH;
@@ -73,25 +106,22 @@ void * get_nvs_value_alloc(nvs_type_t type, const char *key) {
 
 	err = nvs_open(current_namespace, NVS_READONLY, &nvs);
 	if (err != ESP_OK) {
-		return value;
+		ESP_LOGE(TAG,"Could not open the nvs storage.");
+		return NULL;
 	}
 
 	if (type == NVS_TYPE_I8) {
 		value=malloc(sizeof(int8_t));
 		err = nvs_get_i8(nvs, key, (int8_t *) value);
-		printf("value found = %d\n",*(int8_t *)value);
 	} else if (type == NVS_TYPE_U8) {
 		value=malloc(sizeof(uint8_t));
 		err = nvs_get_u8(nvs, key, (uint8_t *) value);
-		printf("value found = %u\n",*(uint8_t *)value);
 	} else if (type == NVS_TYPE_I16) {
 		value=malloc(sizeof(int16_t));
 		err = nvs_get_i16(nvs, key, (int16_t *) value);
-		printf("value found = %d\n",*(int16_t *)value);
 	} else if (type == NVS_TYPE_U16) {
 		value=malloc(sizeof(uint16_t));
 		err = nvs_get_u16(nvs, key, (uint16_t *) value);
-		printf("value found = %u\n",*(uint16_t *)value);
 	} else if (type == NVS_TYPE_I32) {
 		value=malloc(sizeof(int32_t));
 		err = nvs_get_i32(nvs, key, (int32_t *) value);
@@ -105,20 +135,24 @@ void * get_nvs_value_alloc(nvs_type_t type, const char *key) {
 		value=malloc(sizeof(uint64_t));
 		err = nvs_get_u64(nvs, key, (uint64_t *) value);
 	} else if (type == NVS_TYPE_STR) {
-		size_t len;
-		if ((err = nvs_get_str(nvs, key, NULL, &len)) == ESP_OK) {
-			value=malloc(sizeof(len+1));
+		size_t len=0;
+		err = nvs_get_str(nvs, key, NULL, &len);
+		if (err == ESP_OK) {
+			value=malloc(len);
 			err = nvs_get_str(nvs, key, value, &len);
 			}
 	} else if (type == NVS_TYPE_BLOB) {
 		size_t len;
-		if ((err = nvs_get_blob(nvs, key, NULL, &len)) == ESP_OK) {
-			value=malloc(sizeof(len+1));
+		err = nvs_get_blob(nvs, key, NULL, &len);
+		if (err == ESP_OK) {
+			value=malloc(len+1);
 			err = nvs_get_blob(nvs, key, value, &len);
 		}
 	}
 	if(err!=ESP_OK){
-		free(value);
+		ESP_LOGD(TAG,"Value not found for key %s",key);
+		if(value!=NULL)
+			free(value);
 		value=NULL;
 	}
 	nvs_close(nvs);

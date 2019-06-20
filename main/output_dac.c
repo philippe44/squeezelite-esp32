@@ -5,15 +5,17 @@
 
 
 #define DECLARE_ALL_MIN_MAX \
-	DECLARE_MIN_MAX(req); \
-	DECLARE_MIN_MAX(rec); \
-	DECLARE_MIN_MAX(over); \
 	DECLARE_MIN_MAX(o); \
 	DECLARE_MIN_MAX(s); \
 	DECLARE_MIN_MAX(loci2sbuf); \
-	DECLARE_MIN_MAX(buffering); \
+	DECLARE_MIN_MAX(req); \
+	DECLARE_MIN_MAX(rec); \
+	DECLARE_MIN_MAX(over); \
+	DECLARE_MIN_MAX(i2savailable);\
 	DECLARE_MIN_MAX(i2s_time); \
-	DECLARE_MIN_MAX(i2savailable);
+	DECLARE_MIN_MAX(buffering);
+
+
 #define RESET_ALL_MIN_MAX \
 	RESET_MIN_MAX(o); \
 	RESET_MIN_MAX(s); \
@@ -21,9 +23,10 @@
 	RESET_MIN_MAX(req);  \
 	RESET_MIN_MAX(rec);  \
 	RESET_MIN_MAX(over);  \
-	RESET_MIN_MAX(over);  \
 	RESET_MIN_MAX(i2savailable);\
-	RESET_MIN_MAX(i2s_time);
+	RESET_MIN_MAX(i2s_time);\
+	RESET_MIN_MAX(buffering);
+#define STATS_PERIOD_MS 5000
 
 // Prevent compile errors if dac output is
 // included in the build and not actually activated in menuconfig
@@ -138,8 +141,10 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 	i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;           //2-channels
 	i2s_config.communication_format = I2S_COMM_FORMAT_I2S| I2S_COMM_FORMAT_I2S_MSB;
 	// todo: tune this parameter. Expressed in number of samples. Byte size depends on bit depth.
-	i2s_config.dma_buf_count = 64; //todo: tune this parameter. Expressed in numbrer of buffers.
-	i2s_config.dma_buf_len =  128;
+	i2s_config.dma_buf_count = 10;
+	// From the I2S driver source, the DMA buffer size is 4092 bytes.
+	// so buf_len * 2 channels * 2 bytes/sample should be < 4092 or else it will be resized.
+	i2s_config.dma_buf_len =  FRAME_BLOCK/2;
 	i2s_config.use_apll = false;
 	i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1; //Interrupt level 1
 
@@ -154,7 +159,7 @@ void output_init_dac(log_level level, char *device, unsigned output_buf_size, ch
 	isI2SStarted=false;
 	i2s_stop(CONFIG_I2S_NUM);
 
-	dac_buffer_size = 10*FRAME_BLOCK*get_bytes_per_frame(output.format);
+	dac_buffer_size = 5*FRAME_BLOCK*get_bytes_per_frame(output.format);
 	LOG_DEBUG("Allocating local DAC transfer buffer of %u bytes.",dac_buffer_size);
 
 	buf_init(dacbuffer,dac_buffer_size );
@@ -257,9 +262,11 @@ static void *output_thread_dac() {
 	frames_t frames=0;
 	frames_t available_frames_space=0;
 	size_t bytes_to_send_i2s=0, // Contiguous buffer which can be addressed
-		 i2s_bytes_written = 0; //actual size that the i2s port was able to write
+		 i2s_bytes_written = 0,
+		 i2s_total_bytes_written=0; //actual size that the i2s port was able to write
 	uint32_t timer_start=0;
 	static int count = 0;
+	output_state state;
 
 	DECLARE_ALL_MIN_MAX;
 
@@ -270,8 +277,8 @@ static void *output_thread_dac() {
 		bytes_to_send_i2s=0, // Contiguous buffer which can be addressed
 		i2s_bytes_written = 0; //actual size that the i2s port was able to write
 		TIME_MEASUREMENT_START(timer_start);
-
 		LOCK;
+		state =output.state;
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
 			LOG_INFO("Output state is off.");
@@ -284,22 +291,34 @@ static void *output_thread_dac() {
 			continue;
 		}
 		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
-		available_frames_space = min(BYTES_TO_FRAME(min(_buf_space(dacbuffer), _buf_cont_write(dacbuffer))),FRAME_BLOCK);
-		frames = _output_frames( available_frames_space ); // Keep the transfer buffer full
+
+		do{
+			// fill our buffer
+			available_frames_space = BYTES_TO_FRAME(min(_buf_space(dacbuffer), _buf_cont_write(dacbuffer)));
+			if(available_frames_space)
+			{
+				frames = _output_frames( available_frames_space ); // Keep the transfer buffer full
+				SET_MIN_MAX( available_frames_space,req);
+				SET_MIN_MAX(frames,rec);
+			}
+		}while(available_frames_space>0 && frames>0);
+
+		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
+		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 		UNLOCK;
 		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
-		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
-		SET_MIN_MAX( available_frames_space,req);
-		SET_MIN_MAX(frames,rec);
 
+		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
 
 		SET_MIN_MAX_SIZED(_buf_used(dacbuffer),loci2sbuf,dacbuffer->size);
 		bytes_to_send_i2s = _buf_cont_read(dacbuffer);
 		SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
 		int pass=0;
-		while (bytes_to_send_i2s>0 && pass++ < 1 )
+		i2s_total_bytes_written=0;
+
+		while (bytes_to_send_i2s>0 )
 		{
-			// now pass twice
+			// now send all the data
 			TIME_MEASUREMENT_START(timer_start);
 			if(!isI2SStarted)
 			{
@@ -325,70 +344,59 @@ static void *output_thread_dac() {
 			}
 			LOG_SDEBUG("DONE Outputting to I2S. Wrote: %d bytes out of %d", i2s_bytes_written,bytes_to_send_i2s);
 			LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
-
-
-			output.device_frames =0;
-			output.updated = gettime_ms();
-			output.frames_played_dmp = output.frames_played;
+			i2s_total_bytes_written+=i2s_bytes_written;
 			SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
+			if(bytes_to_send_i2s>0) {
+				SET_MIN_MAX(bytes_to_send_i2s-i2s_bytes_written,over);
+			}
 			bytes_to_send_i2s = _buf_cont_read(dacbuffer);
+			SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
+
 		}
-//		if(frames>0){
-//				//LOG_DEBUG("Frames available : %u.",frames);
-//		}
-//		else
-//		{
-//			//LOG_DEBUG("No frame available");
-//			usleep(10000);
-//		}
-		SET_MIN_MAX(bytes_to_send_i2s-i2s_bytes_written,over);
-		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
-		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
+		output.device_frames =0;
+		output.updated = gettime_ms();
+		output.frames_played_dmp = output.frames_played;
+
 
 		/*
 		 * Statistics reporting
 		 */
-
-		//wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written));
-
-		/*
-		 * Statistics reporting
-		 */
-#define STATS_PERIOD_MS 5000
 		count++;
 		TIMED_SECTION_START_MS(STATS_PERIOD_MS);
+		if(state>OUTPUT_STOPPED){
 
-		LOG_INFO( "count:%d, current sample rate: %d, bytes per frame: %d, avg cycle duration (ms): %d",count,output.current_sample_rate, out_bytes_per_frame,STATS_PERIOD_MS/count);
-		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD1);
-		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD2);
-		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD3);
-		LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD4);
-		LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("local free",loci2sbuf));
-		LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-		LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
-		LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
-		LOG_INFO("");
-		LOG_INFO("              ----------+----------+-----------+-----------+  ");
-		LOG_INFO("              max (us)  | min (us) |   avg(us) |  count    |  ");
-		LOG_INFO("              ----------+----------+-----------+-----------+  ");
-		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Buffering(us)",buffering));
-		LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("i2s tfr(us)",i2s_time));
-		LOG_INFO("              ----------+----------+-----------+-----------+");
-
-
-
-		RESET_ALL_MIN_MAX;
+			LOG_INFO( "count:%d, Output State: %d, current sample rate: %d, bytes per frame: %d, avg cycle duration (ms): %d",count,state,output.current_sample_rate, out_bytes_per_frame,STATS_PERIOD_MS/count);
+			LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD1);
+			LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD2);
+			LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD3);
+			LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD4);
+			LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("dac buf used",loci2sbuf));
+			LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
+			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
+			LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
+			LOG_INFO("");
+			LOG_INFO("              ----------+----------+-----------+-----------+  ");
+			LOG_INFO("              max (us)  | min (us) |   avg(us) |  count    |  ");
+			LOG_INFO("              ----------+----------+-----------+-----------+  ");
+			LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Buffering(us)",buffering));
+			LOG_INFO(LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("i2s tfr(us)",i2s_time));
+			LOG_INFO("              ----------+----------+-----------+-----------+");
+			RESET_ALL_MIN_MAX;
+		}
+		else {
+			LOG_INFO( "count:%d, Output State: %d",count,state);
+		}
 		count=0;
 		TIMED_SECTION_END;
 		/*
 		 * End Statistics reporting
 		 */
-//		wait_for_frames(BYTES_TO_FRAME(i2s_bytes_written),75);
+
 	}
 	return 0;
 }

@@ -110,28 +110,29 @@ void run_command(char * line);
 //	ESP_ERROR_CHECK( esp_console_cmd_register(&config_list) );
 //
 //}
+
 void process_autoexec(){
 	int i=1;
 	char autoexec_name[21]={0};
 	char * autoexec_value=NULL;
-	int * autoexec_flag = get_nvs_value_alloc(NVS_TYPE_U8, "autoexec");
-	if(autoexec_flag!=NULL)
-	{
-		ESP_LOGI(TAG,"autoexec flag value found with value %d", *autoexec_flag);
-		printf("printf -- autoexec flag value found with value %d", *autoexec_flag);
-		if(*autoexec_flag == 1)
-		{
+	uint8_t * autoexec_flag=NULL;
+
+	autoexec_flag = get_nvs_value_alloc(NVS_TYPE_U8, "autoexec");
+
+	if(autoexec_flag!=NULL ){
+		ESP_LOGI(TAG,"autoexec flag value found with value %u", *autoexec_flag);
+		if(*autoexec_flag == 1) {
 			do {
 				snprintf(autoexec_name,sizeof(autoexec_name)-1,"autoexec%u",i++);
 				ESP_LOGD(TAG,"Getting command name %s", autoexec_name);
 				autoexec_value= get_nvs_value_alloc(NVS_TYPE_STR, autoexec_name);
-				if(autoexec_value!=NULL){
+				if(autoexec_value!=NULL ){
 					ESP_LOGI(TAG,"Running command %s = %s", autoexec_name, autoexec_value);
 					run_command(autoexec_value);
+					ESP_LOGD(TAG,"Freeing memory for command %s name", autoexec_name);
 					free(autoexec_value);
 				}
-				else
-				{
+				else {
 					ESP_LOGD(TAG,"No matching command found for name %s", autoexec_name);
 					break;
 				}
@@ -143,11 +144,11 @@ void process_autoexec(){
 	{
 		ESP_LOGD(TAG,"No matching command found for name autoexec. Adding default entries");
 		uint8_t autoexec_dft=0;
-		char autoexec1_dft[]="join " CONFIG_WIFI_SSID CONFIG_WIFI_PASSWORD;
+		char autoexec1_dft[]="join MySSID MyPASSWORD";
 		char autoexec2_dft[]="squeezelite -o \"DAC\" -b 500:2000 -d all=debug -M esp32 -r \"44100,4800\" -N \"playername.txt\"";
 		store_nvs_value(NVS_TYPE_U8,"autoexec",&autoexec_dft);
-		store_nvs_value(NVS_TYPE_U8,"autoexec1",autoexec1_dft);
-		store_nvs_value(NVS_TYPE_U8,"autoexec2",autoexec2_dft);
+		store_nvs_value(NVS_TYPE_STR,"autoexec1",autoexec1_dft);
+		store_nvs_value(NVS_TYPE_STR,"autoexec2",autoexec2_dft);
 	}
 }
 static void initialize_filesystem() {

@@ -63,7 +63,7 @@ extern pthread_t wifi_connect_suspend_mutex;
 //		"\n",
 //		""
 //};
-#define ESP_LOG_DEBUG_EVENT(tag,e) ESP_LOGD(tag,"evt: " QUOTE(e))
+#define ESP_LOG_DEBUG_EVENT(tag,e) ESP_LOGD(tag,"evt: " e)
 typedef struct {
 	char * optName;
 	char * cmdLinePrefix;

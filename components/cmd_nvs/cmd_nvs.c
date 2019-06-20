@@ -7,7 +7,10 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 
-
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "nvs_flash.h"
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
@@ -21,6 +24,7 @@
 #include "esp_err.h"
 #include "cmd_nvs.h"
 #include "nvs.h"
+
 
 typedef struct {
     nvs_type_t type;
@@ -297,7 +301,7 @@ static esp_err_t get_value_from_nvs(const char *key, const char *str_type)
             printf("Value associated with key '%s' is %llu \n", key, value);
         }
     } else if (type == NVS_TYPE_STR) {
-        size_t len;
+        size_t len=0;
         if ( (err = nvs_get_str(nvs, key, NULL, &len)) == ESP_OK) {
             char *str = (char *)malloc(len);
             if ( (err = nvs_get_str(nvs, key, str, &len)) == ESP_OK) {
@@ -456,6 +460,7 @@ static int set_namespace(int argc, char **argv)
     ESP_LOGI(TAG, "Namespace set to '%s'", current_namespace);
     return 0;
 }
+
 #ifdef ESP_IDF_COMMIT_bde1c30 // this commit added support for listing nvs entries
 
 static int list(const char *part, const char *name, const char *str_type)
@@ -563,6 +568,7 @@ void register_nvs()
         .func = &set_namespace,
         .argtable = &namespace_args
     };
+
 #ifdef ESP_IDF_COMMIT_bde1c30 // this commit added support for listing nvs entries
     const esp_console_cmd_t list_entries_cmd = {
            .command = "nvs_list",
@@ -582,3 +588,6 @@ void register_nvs()
     ESP_ERROR_CHECK(esp_console_cmd_register(&namespace_cmd));
     ESP_ERROR_CHECK(esp_console_cmd_register(&erase_namespace_cmd));
 }
+#ifdef __cplusplus
+extern }
+#endif

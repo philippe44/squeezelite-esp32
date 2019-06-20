@@ -352,10 +352,10 @@ void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param)
         break;
     }
     case ESP_BT_GAP_RMT_SRVCS_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_BT_GAP_RMT_SRVCS_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_BT_GAP_RMT_SRVCS_EVT));
     	break;
     case ESP_BT_GAP_RMT_SRVC_REC_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_BT_GAP_RMT_SRVC_REC_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_BT_GAP_RMT_SRVC_REC_EVT));
         break;
     case ESP_BT_GAP_AUTH_CMPL_EVT: {
     	if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
@@ -733,7 +733,7 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
         break;
     }
     case APP_AV_MEDIA_STATE_STOPPING: {
-    	ESP_LOG_DEBUG_EVENT(TAG,APP_AV_MEDIA_STATE_STOPPING);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(APP_AV_MEDIA_STATE_STOPPING));
         if (event == ESP_A2D_MEDIA_CTRL_ACK_EVT) {
             a2d = (esp_a2d_cb_param_t *)(param);
             if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_STOP &&
@@ -774,7 +774,7 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 //	UNLOCK;
 	switch (event) {
     case ESP_A2D_CONNECTION_STATE_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_CONNECTION_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_CONNECTION_STATE_EVT));
     	// this could happen if connection was established
     	// right after we timed out. Pass the call down to the connecting
     	// handler.
@@ -785,14 +785,14 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 
     	break;
     case ESP_A2D_AUDIO_STATE_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_STATE_EVT));
 
     	break;
     case ESP_A2D_AUDIO_CFG_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_CFG_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_CFG_EVT));
     	break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_MEDIA_CTRL_ACK_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_MEDIA_CTRL_ACK_EVT));
     	break;
     case BT_APP_HEART_BEAT_EVT: {
        // uint8_t *p = s_peer_bda;
@@ -856,13 +856,13 @@ static void bt_app_av_state_connecting(uint16_t event, void *param)
         break;
     }
     case ESP_A2D_AUDIO_STATE_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_STATE_EVT));
     	break;
     case ESP_A2D_AUDIO_CFG_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_CFG_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_CFG_EVT));
     	break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_MEDIA_CTRL_ACK_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_MEDIA_CTRL_ACK_EVT));
     	break;
     case BT_APP_HEART_BEAT_EVT:
     	if (IS_A2DP_TIMER_OVER)
@@ -894,7 +894,7 @@ static void bt_app_av_state_connected(uint16_t event, void *param)
         break;
     }
     case ESP_A2D_AUDIO_STATE_EVT: {
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_STATE_EVT));
         a2d = (esp_a2d_cb_param_t *)(param);
         if (ESP_A2D_AUDIO_STATE_STARTED == a2d->audio_stat.state) {
             s_pkt_cnt = 0;
@@ -903,15 +903,15 @@ static void bt_app_av_state_connected(uint16_t event, void *param)
     }
     case ESP_A2D_AUDIO_CFG_EVT:
         // not suppposed to occur for A2DP source
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_CFG_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_CFG_EVT));
         break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:{
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_MEDIA_CTRL_ACK_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_MEDIA_CTRL_ACK_EVT));
             bt_app_av_media_proc(event, param);
             break;
         }
     case BT_APP_HEART_BEAT_EVT: {
-    	ESP_LOG_DEBUG_EVENT(TAG,BT_APP_HEART_BEAT_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(BT_APP_HEART_BEAT_EVT));
         bt_app_av_media_proc(event, param);
         break;
     }
@@ -926,7 +926,7 @@ static void bt_app_av_state_disconnecting(uint16_t event, void *param)
     esp_a2d_cb_param_t *a2d = NULL;
     switch (event) {
     case ESP_A2D_CONNECTION_STATE_EVT: {
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_CONNECTION_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_CONNECTION_STATE_EVT));
         a2d = (esp_a2d_cb_param_t *)(param);
         if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
             ESP_LOGI(TAG,"a2dp disconnected");
@@ -936,16 +936,16 @@ static void bt_app_av_state_disconnecting(uint16_t event, void *param)
         break;
     }
     case ESP_A2D_AUDIO_STATE_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_STATE_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_STATE_EVT));
     	break;
     case ESP_A2D_AUDIO_CFG_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_AUDIO_CFG_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_AUDIO_CFG_EVT));
     	break;
     case ESP_A2D_MEDIA_CTRL_ACK_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,ESP_A2D_MEDIA_CTRL_ACK_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_MEDIA_CTRL_ACK_EVT));
     	break;
     case BT_APP_HEART_BEAT_EVT:
-    	ESP_LOG_DEBUG_EVENT(TAG,BT_APP_HEART_BEAT_EVT);
+    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(BT_APP_HEART_BEAT_EVT));
     	break;
     default:
         ESP_LOGE(TAG,"%s unhandled evt %d", __func__, event);
