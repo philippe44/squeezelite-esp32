@@ -64,102 +64,30 @@ extern pthread_t wifi_connect_suspend_mutex;
 //		""
 //};
 #define ESP_LOG_DEBUG_EVENT(tag,e) ESP_LOGD(tag,"evt: " e)
-typedef struct {
-	char * optName;
-	char * cmdLinePrefix;
-	char * description;
-	char * defaultValue;
-	char * relatedcommand;
-} optListStruct;
-optListStruct * getOptionByName(char * option);
-//static optListStruct optList[] = {
-//	{
-//		.optName= "log_slimproto",
-//		.cmdLinePrefix="-d slimproto=",
-//		.description="Slimproto Logging Level info|debug|sdebug",
-//		.defaultValue=(CONFIG_LOGGING_SLIMPROTO),
-//		.relatedcommand="squeezelite"
-//	},
-//	{
-//		.optName="log_stream",
-//		.cmdLinePrefix="-d stream=",
-//		.description="Stream Logging Level info|debug|sdebug",
-//		.defaultValue=(CONFIG_LOGGING_STREAM),
-//		.relatedcommand="squeezelite"
-//	},
-//	{
-//		.optName="log_decode",
-//		.cmdLinePrefix="-d decode=",
-//		.description="Decode Logging Level info|debug|sdebug",
-//		.defaultValue=(CONFIG_LOGGING_DECODE),
-//		.relatedcommand="squeezelite"
-//	},
-//	{
-//		.optName="log_output",
-//		.cmdLinePrefix="-d output=",
-//		.description="Output Logging Level info|debug|sdebug",
-//		.defaultValue=(CONFIG_LOGGING_OUTPUT),
-//		.relatedcommand="squeezelite"
-//	},
-//	{
-//		.optName="output_rates",
-//		.cmdLinePrefix="-r ",
-//		.description="Supported rates",
-//		.defaultValue=(CONFIG_OUTPUT_RATES),
-//		.relatedcommand="squeezelite"
-//	},
-//	{
-//		.optName="output_dev",
-//		.cmdLinePrefix="-O",
-//		.description="Output device to use. BT for Bluetooth, DAC for i2s DAC.",
-//		.defaultValue=(CONFIG_A2DP_SINK_NAME),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="a2dp_sink_name",
-//		.cmdLinePrefix="",
-//		.description="Bluetooth sink name to connect to.",
-//		.defaultValue=(CONFIG_A2DP_SINK_NAME),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="a2dp_dev_name",
-//		.cmdLinePrefix="",
-//		.description="A2DP Device name to use when connecting to audio sink.",
-//		.defaultValue=(CONFIG_A2DP_DEV_NAME),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="a2dp_cntrldelay",
-//		.cmdLinePrefix="",
-//		.description="Delay (ms) for each pass of the A2DP control loop.",
-//		.defaultValue=STR(CONFIG_A2DP_CONTROL_DELAY_MS),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="a2dp_timeout",
-//		.cmdLinePrefix="",
-//		.description="Delay (ms) for A2DP timeout on connect.",
-//		.defaultValue=STR(CONFIG_A2DP_CONNECT_TIMEOUT_MS),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="wifi_ssid",
-//		.cmdLinePrefix="",
-//		.description="WiFi access point name to connect to.",
-//		.defaultValue=	(CONFIG_WIFI_SSID),
-//		.relatedcommand=""
-//	},
-//	{
-//		.optName="wifi_password",
-//		.cmdLinePrefix= "",
-//		.description="WiFi access point password.",
-//		.defaultValue=(CONFIG_WIFI_PASSWORD),
-//		.relatedcommand=""
-//	},
-//	{}
-//};
-
+const char *loc_logtime(void);
+//#define MY_ESP_LOG
+#ifdef MY_ESP_LOG
+#ifdef ESP_LOGI
+#undef ESP_LOGI
+#define ESP_LOGI(tag, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_INFO,    tag, "%s %d " format,loc_logtime(),  __LINE__, ##__VA_ARGS__)
+#endif
+#ifdef ESP_LOGE
+#undef ESP_LOGE
+#define ESP_LOGE(tag, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR,    tag, "%s %d " format,loc_logtime(),  __LINE__, ##__VA_ARGS__)
+#endif
+#ifdef ESP_LOGW
+#undef ESP_LOGW
+#define ESP_LOGW(tag, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_WARN,    tag, "%s %d " format,loc_logtime(),  __LINE__, ##__VA_ARGS__)
+#endif
+#ifdef ESP_LOGD
+#undef ESP_LOGD
+#define ESP_LOGD(tag, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_DEBUG,    tag, "%s %d " format,loc_logtime(),  __LINE__, ##__VA_ARGS__)
+#endif
+#ifdef ESP_LOGV
+#undef ESP_LOGV
+#define ESP_LOGV(tag, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_VERBOSE, tag, "%s %d " format,loc_logtime(),  __LINE__, ##__VA_ARGS__)
+#endif
+#endif
 #ifdef __cplusplus
 }
 #endif

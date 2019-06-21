@@ -202,7 +202,7 @@ void initialize_console() {
 	esp_vfs_dev_uart_use_driver(CONFIG_CONSOLE_UART_NUM);
 
 	/* Initialize the console */
-	esp_console_config_t console_config = { .max_cmdline_args = 8,
+	esp_console_config_t console_config = { .max_cmdline_args = 22,
 			.max_cmdline_length = 256,
 #if CONFIG_LOG_COLORS
 			.hint_color = atoi(LOG_COLOR_CYAN)

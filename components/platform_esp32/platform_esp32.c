@@ -36,7 +36,7 @@
 #include "argtable3/argtable3.h"
 
 #define STATS_REPORT_DELAY_MS 15000
-static const char * TAG = "platform_esp32";
+static const char * TAG = "platform";
 extern char * get_output_state_desc(output_state state);
 
 extern struct outputstate output;
@@ -50,6 +50,7 @@ time_t disconnect_time=0;
 #define LOCK   pthread_mutex_lock(&(outputbuf->mutex))
 #define UNLOCK pthread_mutex_unlock(&(outputbuf->mutex))
 int64_t connecting_timeout = 0;
+
 static const char *  art_a2dp_connected[]={"\n",
 		"           ___  _____  _____     _____                            _           _ _ ",
 		"     /\\   |__ \\|  __ \\|  __ \\   / ____|                          | |         | | |",
@@ -136,7 +137,7 @@ char * APP_AV_STATE_DESC[] = {
 enum {
     APP_AV_MEDIA_STATE_IDLE,
     APP_AV_MEDIA_STATE_STARTING,
-	APP_AV_MEDIA_STATE_BUFFERING,
+//	APP_AV_MEDIA_STATE_BUFFERING,
     APP_AV_MEDIA_STATE_STARTED,
     APP_AV_MEDIA_STATE_STOPPING,
 	APP_AV_MEDIA_STATE_WAIT_DISCONNECT
@@ -411,7 +412,6 @@ static void a2d_app_heart_beat(void *arg)
 
 static void bt_app_av_sm_hdlr(uint16_t event, void *param)
 {
-    //ESP_LOGD(TAG,"%s state %s, evt 0x%x, output state: %d", __func__, APP_AV_STATE_DESC[s_a2d_state], event, output.state);
     switch (s_a2d_state) {
     case APP_AV_STATE_DISCOVERING:
     	ESP_LOGV(TAG,"state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, get_output_state_desc(output.state));
@@ -488,6 +488,12 @@ static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param)
     uint8_t *eir = NULL;
     uint8_t nameLen = 0;
     esp_bt_gap_dev_prop_t *p;
+    if(s_a2d_state != APP_AV_STATE_DISCOVERING)
+    {
+    	// Ignore messages that might have been queued already
+    	// when we've discovered the target device.
+    	return;
+    }
     memset(s_peer_bdname, 0x00,sizeof(s_peer_bdname));
 
     ESP_LOGI(TAG,"\n=======================\nScanned device: %s", bda2str(param->disc_res.bda, bda_str, 18));
@@ -630,7 +636,7 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     	if (event == BT_APP_HEART_BEAT_EVT) {
             if(out_state > OUTPUT_STOPPED)
             {
-            	ESP_LOGI(TAG,"Output state is %s, a2dp media ready and connected. Checking if A2DP is ready.", get_output_state_desc(out_state));
+            	ESP_LOGI(TAG,"Output state is %s, Checking if A2DP is ready.", get_output_state_desc(out_state));
             	esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY);
             }
 
@@ -639,43 +645,13 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
 			if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY &&
 					a2d->media_ctrl_stat.status == ESP_A2D_MEDIA_CTRL_ACK_SUCCESS
 					) {
-				ESP_LOGI(TAG,"a2dp media ready, waiting for media buffering ...");
-				s_media_state = APP_AV_MEDIA_STATE_BUFFERING;
+				ESP_LOGI(TAG,"a2dp media ready, starting playback!");
+				s_media_state = APP_AV_MEDIA_STATE_STARTING;
+				esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_START);
 			}
         }
         break;
     }
-    case APP_AV_MEDIA_STATE_BUFFERING: {
-      	if (event == BT_APP_HEART_BEAT_EVT) {
-      		switch (out_state) {
-				case OUTPUT_RUNNING :
-				case OUTPUT_PAUSE_FRAMES :
-				case OUTPUT_SKIP_FRAMES:
-				case OUTPUT_START_AT:
-				case OUTPUT_BUFFER:
-	            	 // Buffer is ready, local buffer has some data, start playback!
-					ESP_LOGI(TAG,"Out state is %s, a2dp media ready and connected. Starting playback! ", get_output_state_desc(out_state));
-					s_media_state = APP_AV_MEDIA_STATE_STARTING;
-					esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_START);
-					break;
-				case OUTPUT_STOPPED:
-				case OUTPUT_OFF:
-					ESP_LOGD(TAG,"Output state is %s. Changing app status to ",get_output_state_desc(out_state));
-	                s_media_state = APP_AV_MEDIA_STATE_STOPPING;
-	                esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
-	                break;
-				default:
-					ESP_LOGE(TAG,"Unknown output status while waiting for buffering to complete %d",out_state);
-					break;
-			}
-          }
-      	else{
-      		ESP_LOGW(TAG,"Received unknown event while in state APP_AV_MEDIA_STATE_BUFFERING");
-      	}
-
-          break;
-      }
-
 
     case APP_AV_MEDIA_STATE_STARTING: {
     	if (event == ESP_A2D_MEDIA_CTRL_ACK_EVT) {
@@ -695,7 +671,7 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     case APP_AV_MEDIA_STATE_STARTED: {
         if (event == BT_APP_HEART_BEAT_EVT) {
         	if(out_state <= OUTPUT_STOPPED) {
-        		ESP_LOGI(TAG,"Output state is stopped. Stopping a2dp media ...");
+        		ESP_LOGI(TAG,"Output state is %s. Stopping a2dp media ...", get_output_state_desc(out_state));
                 s_media_state = APP_AV_MEDIA_STATE_STOPPING;
                 esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
             }
@@ -812,13 +788,13 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 		}
 //        if(out_state > OUTPUT_STOPPED){
         	// only attempt a connect when playback isn't stopped
+			for(uint8_t l=0;art_a2dp_connecting[l][0]!='\0';l++){
+				ESP_LOGI(TAG,"%s",art_a2dp_connecting[l]);
+			}
+			ESP_LOGI(TAG,"Device: %s", s_peer_bdname);
 			if(esp_a2d_source_connect(s_peer_bda)==ESP_OK) {
-				s_a2d_state = APP_AV_STATE_CONNECTING;
-				for(uint8_t l=0;art_a2dp_connecting[l][0]!='\0';l++){
-					ESP_LOGI(TAG,"%s",art_a2dp_connecting[l]);
-				}
-				ESP_LOGI(TAG,"********** A2DP CONNECTING TO %s", s_peer_bdname);
 				A2DP_TIMER_INIT;
+				s_a2d_state = APP_AV_STATE_CONNECTING;
 			}
 			else {
 				// there was an issue connecting... continue to discover
@@ -844,12 +820,13 @@ static void bt_app_av_state_connecting(uint16_t event, void *param)
         if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_CONNECTED) {
             s_a2d_state =  APP_AV_STATE_CONNECTED;
             s_media_state = APP_AV_MEDIA_STATE_IDLE;
-			for(uint8_t l=0;art_a2dp_connected[l][0]!='\0';l++){
-				ESP_LOGI(TAG,"%s",art_a2dp_connected[l]);
-			}
+
 			ESP_LOGD(TAG,"Setting scan mode to ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE");
             esp_bt_gap_set_scan_mode(ESP_BT_NON_CONNECTABLE, ESP_BT_NON_DISCOVERABLE);
             ESP_LOGD(TAG,"Done setting scan mode. App state is now CONNECTED and media state IDLE.");
+			for(uint8_t l=0;art_a2dp_connected[l][0]!='\0';l++){
+				ESP_LOGI(TAG,"%s",art_a2dp_connected[l]);
+			}
         } else if (a2d->conn_stat.state == ESP_A2D_CONNECTION_STATE_DISCONNECTED) {
             s_a2d_state =  APP_AV_STATE_UNCONNECTED;
         }
@@ -868,8 +845,7 @@ static void bt_app_av_state_connecting(uint16_t event, void *param)
     	if (IS_A2DP_TIMER_OVER)
     	{
             s_a2d_state = APP_AV_STATE_UNCONNECTED;
-            ESP_LOGE(TAG,"A2DP Connect time out!  Setting state to Unconnected. ");
-            A2DP_TIMER_INIT;
+            ESP_LOGW(TAG,"A2DP Connect time out!  Setting state to Unconnected. ");
         }
     	ESP_LOGV(TAG,"BT_APP_HEART_BEAT_EVT");
         break;
@@ -911,7 +887,7 @@ static void bt_app_av_state_connected(uint16_t event, void *param)
             break;
         }
     case BT_APP_HEART_BEAT_EVT: {
-    	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(BT_APP_HEART_BEAT_EVT));
+    	ESP_LOGV(TAG,QUOTE(BT_APP_HEART_BEAT_EVT));
         bt_app_av_media_proc(event, param);
         break;
     }
@@ -951,4 +927,18 @@ static void bt_app_av_state_disconnecting(uint16_t event, void *param)
         ESP_LOGE(TAG,"%s unhandled evt %d", __func__, event);
         break;
     }
+}
+const char *loc_logtime(void) {
+	static char buf[100];
+#if WIN
+	SYSTEMTIME lt;
+	GetLocalTime(&lt);
+	sprintf(buf, "[%02d:%02d:%02d.%03d]", lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
+#else
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	strftime(buf, sizeof(buf), "[%T.", localtime(&tv.tv_sec));
+	sprintf(buf+strlen(buf), "%06ld]", (long)tv.tv_usec);
+#endif
+	return buf;
 }

@@ -16,7 +16,7 @@
 #include "nvs_flash.h"
 //extern char current_namespace[];
 static const char * TAG = "squeezelite_cmd";
-#define SQUEEZELITE_THREAD_STACK_SIZE 20480
+#define SQUEEZELITE_THREAD_STACK_SIZE 32000
 extern int main(int argc, char **argv);
 static int launchsqueezelite(int argc, char **argv);
 pthread_t thread_squeezelite;
@@ -45,11 +45,11 @@ static void * squeezelite_thread(){
 	}
 	isRunning=true;
 	ESP_LOGI(TAG,"Waiting for WiFi.");
-	while(!wait_for_wifi()){};
+	while(!wait_for_wifi()){usleep(100000);};
 	ESP_LOGD(TAG ,"Number of args received: %u",thread_parms.argc );
-	ESP_LOGV(TAG ,"Values:");
+	ESP_LOGD(TAG ,"Values:");
     for(int i = 0;i<thread_parms.argc; i++){
-    	ESP_LOGV(TAG ,"     %s",thread_parms.argv[i]);
+    	ESP_LOGD(TAG ,"     %s",thread_parms.argv[i]);
     }
 
     ESP_LOGD(TAG,"Starting Squeezelite runner Thread");
@@ -75,57 +75,14 @@ static void * squeezelite_thread(){
 	isRunning=false;
 	return NULL;
 }
-//static int launchsqueezelite_dft(int _argc, char **_argv){
-//	nvs_handle nvs;
-//	esp_err_t err;
-//	optListStruct * curOpt=&optList[0];
-//	ESP_LOGV(TAG ,"preparing to allocate memory ");
-//	int argc =_argc+50; // todo: max number of parms?
-//	char ** argv = malloc(sizeof(char**)*argc);
-//	memset(argv,'\0',sizeof(char**)*argc);
-//	int curOptNum=0;
-//	argv[curOptNum++]=strdup(_argv[0]);
-//	ESP_LOGV(TAG ,"nvs_open\n");
-//	err = nvs_open(current_namespace, NVS_READONLY, &nvs);
-//	if (err != ESP_OK) {
-//		return err;
-//	}
-//
-//	while(curOpt->optName!=NULL){
-//		ESP_LOGV(TAG ,"Checking option %s with default value %s",curOpt->optName, curOpt->defaultValue);
-//		if(!strcmp(curOpt->relatedcommand,"squeezelite"))
-//		{
-//			ESP_LOGV(TAG ,"option is for Squeezelite command, processing it");
-//			// this is a squeezelite option
-//			if(curOpt->cmdLinePrefix!=NULL){
-//				ESP_LOGV(TAG ,"adding prefix %s",curOpt->cmdLinePrefix);
-//				argv[curOptNum++]=strdup(curOpt->cmdLinePrefix);
-//			}
-//			size_t len;
-//			if ( (nvs_get_str(nvs, curOpt->optName, NULL, &len)) == ESP_OK) {
-//				char *str = (char *)malloc(len);
-//				nvs_get_str(nvs, curOpt->optName, str, &len);
-//				ESP_LOGV(TAG ,"assigning retrieved value %s",str);
-//				argv[curOptNum++]=str;
-//
-//			}
-//		}
-//		curOpt++;
-//	}
-//	nvs_close(nvs);
-//	ESP_LOGV(TAG ,"calling launchsqueezelite with parameters");
-//	launchsqueezelite(argc, argv);
-//	ESP_LOGV(TAG ,"back from calling launchsqueezelite");
-//	return 0;
-//}
 
 static int launchsqueezelite(int argc, char **argv)
 {
 	ESP_LOGV(TAG ,"Begin");
 
-    ESP_LOGV(TAG, "Parameters:");
+    ESP_LOGD(TAG, "Parameters:");
     for(int i = 0;i<argc; i++){
-    	ESP_LOGV(TAG, "     %s",argv[i]);
+    	ESP_LOGD(TAG, "     %s",argv[i]);
     }
     ESP_LOGV(TAG,"Saving args in thread structure");
 
