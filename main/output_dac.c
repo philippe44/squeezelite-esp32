@@ -291,6 +291,9 @@ static void *output_thread_dac() {
 			continue;
 		}
 		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(dacbuffer),_buf_cont_read(dacbuffer));
+		output.device_frames =0;
+		output.updated = gettime_ms();
+		output.frames_played_dmp = output.frames_played;
 
 		do{
 			// fill our buffer
@@ -313,7 +316,6 @@ static void *output_thread_dac() {
 		SET_MIN_MAX_SIZED(_buf_used(dacbuffer),loci2sbuf,dacbuffer->size);
 		bytes_to_send_i2s = _buf_cont_read(dacbuffer);
 		SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
-		int pass=0;
 		i2s_total_bytes_written=0;
 
 		while (bytes_to_send_i2s>0 )
@@ -353,9 +355,6 @@ static void *output_thread_dac() {
 			SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
 
 		}
-		output.device_frames =0;
-		output.updated = gettime_ms();
-		output.frames_played_dmp = output.frames_played;
 
 
 		/*

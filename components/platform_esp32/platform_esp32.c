@@ -295,6 +295,9 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	SET_MIN_MAX(len,req);
 	TIME_MEASUREMENT_START(start_timer);
 	LOCK;
+	output.device_frames = 0; // todo: check if this is the right way do to this.
+	output.updated = gettime_ms();
+	output.frames_played_dmp = output.frames_played;
 	SET_MIN_MAX_SIZED(_buf_used(outputbuf),bt,outputbuf->size);
 	do {
 		avail_data = _output_frames( wanted_len/BYTES_PER_FRAME )*BYTES_PER_FRAME; // Keep the transfer buffer full
@@ -304,9 +307,7 @@ static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
 	{
 		SET_MIN_MAX(wanted_len, under);
 	}
-	output.device_frames = 0; // todo: check if this is the right way do to this.
-	output.updated = gettime_ms();
-	output.frames_played_dmp = output.frames_played;
+
 	UNLOCK;
 	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);
 	SET_MIN_MAX((len-wanted_len), rec);
