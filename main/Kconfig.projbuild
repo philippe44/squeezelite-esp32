@@ -99,7 +99,6 @@ menu "Squeezelite-ESP32"
         help
             Include FAAD library for aac decoding.
     config INCLUDE_MAD
-    	depends on SPIRAM_SUPPORT
         bool "MAD"
         default 1
         help

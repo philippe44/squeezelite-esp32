@@ -329,14 +329,14 @@ static decode_state alac_decode(void) {
 			bytes = min(_buf_used(streambuf), _buf_cont_read(streambuf));
 
 			LOG_INFO("setting track_start");
-			LOCK_O_not_direct;
+			LOCK_O;
 
 			output.next_sample_rate = decode_newstream(l->sample_rate, output.supported_rates);
 			output.track_start = outputbuf->writep;
 			if (output.fade_mode) _checkfade(true);
 			decode.new_stream = false;
 
-			UNLOCK_O_not_direct;
+			UNLOCK_O;
 		} else if (found == -1) {
 			LOG_WARN("[%p]: error reading stream header");
 			UNLOCK_S;
