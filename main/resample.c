@@ -190,6 +190,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 
 #if BYTES_PER_FRAME == 4
 		io_spec = SOXR(r, io_spec, SOXR_INT16_I, SOXR_INT16_I);
+		io_spec.flags = SOXR_NO_DITHER;
 #else		
 		io_spec = SOXR(r, io_spec, SOXR_INT32_I, SOXR_INT32_I);
 #endif	
@@ -208,7 +209,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 		if (r->q_phase_response > -1) {
 			q_spec.phase_response = r->q_phase_response;
 		}
-
+		
 #if RESAMPLE_MP
 		r_spec = SOXR(r, runtime_spec, 0); // make use of libsoxr OpenMP support allowing parallel execution if multiple cores
 #endif		   
@@ -307,22 +308,23 @@ bool resample_init(char *opt) {
 		phase_response = next_param(NULL, ':');
 	}
 
-
 #if BYTES_PER_FRAME == 4	
-	// default to LQ (16 bit) if not user specified
-	r->q_recipe = SOXR_LQ;
+	// default to LQ (16 bits) if not user specified
+	r->q_recipe = SOXR_LQ | SOXR_MINIMUM_PHASE;
+	r->q_flags = SOXR_ROLLOFF_NONE;
+	r->q_phase_response = 0;
 #else
-	// default to HQ (20 bit) if not user specified
+	// default to HQ (20 bits) if not user specified
 	r->q_recipe = SOXR_HQ;
-#endif	
 	r->q_flags = 0;
+	r->q_phase_response = -1;
+#endif	
 	// default to 1db of attenuation if not user specified
 	r->scale = pow(10, -1.0 / 20);
 	// override recipe derived values with user specified values
 	r->q_precision = 0;
 	r->q_passband_end = 0;
 	r->q_stopband_begin = 0;
-	r->q_phase_response = -1;
 
 	if (recipe && recipe[0] != '\0') {
 		if (strchr(recipe, 'v')) r->q_recipe = SOXR_VHQ;
