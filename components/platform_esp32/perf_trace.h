@@ -16,7 +16,7 @@
 #define SET_MIN_MAX_SIZED(val,var,siz) var=val; if(var<min_##var) min_##var=var; if(var>max_##var) max_##var=var; count_##var++; avgtot_##var+= var;size_##var=siz
 #define RESET_MIN_MAX(var) min_##var=PERF_MAX; max_##var=0; avgtot_##var=0;count_##var=0;var=0;size_##var=0
 #define RESET_MIN_MAX_DURATION(var) min_##var=PERF_MAX; max_##var=0; avgtot_##var=0;count_##var=0;var=0
-#define DECLARE_MIN_MAX(var) static uint32_t min_##var = PERF_MAX, max_##var = 0, size_##var = 0, count_##var=0;uint64_t avgtot_##var = 0; uint32_t var=0
+#define DECLARE_MIN_MAX(var) static uint32_t min_##var = PERF_MAX, max_##var = 0, size_##var = 0, count_##var=0;static uint64_t avgtot_##var = 0; static uint32_t var=0
 #define DECLARE_MIN_MAX_DURATION(var) static uint32_t min_##var = PERF_MAX, max_##var = 0, count_##var=0; uint64_t avgtot_##var = 0; uint32_t var=0
 #define LINE_MIN_MAX_AVG(var) (uint32_t)(count_##var>0?avgtot_##var/count_##var:0)
 

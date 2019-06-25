@@ -31,7 +31,7 @@ pthread_t thread_console;
 static void * console_thread();
 void console_start();
 static const char * TAG = "console";
-extern char current_namespace[];
+
 /* Prompt to be printed before each line.
  * This can be customized, made dynamic, etc.
  */
@@ -238,6 +238,7 @@ void console_start() {
 	register_wifi();
 	register_nvs();
 	register_squeezelite();
+	register_i2ctools();
 	printf("\n"
 			"Type 'help' to get the list of commands.\n"
 			"Use UP/DOWN arrows to navigate through command history.\n"
