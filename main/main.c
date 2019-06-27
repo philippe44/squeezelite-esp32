@@ -111,6 +111,10 @@ static void usage(const char *argv0) {
 		   "  \t\t\t stopband_start = number in percent (Aliasing/imaging control. > passband_end),\n"
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
+#if RESAMPLE16
+		   "  -R -u [params]\tResample, params = (i|m)[:i],\n" 
+		   "   \t\t\t i = linear interpolation, m =  13 taps filter, i = interpolate filter coefficients\n"
+#endif
 #if DSD
 #if ALSA
 		   "  -D [delay][:format]\tOutput device supports DSD, delay = optional delay switching between PCM and DSD in ms\n"
@@ -132,7 +136,7 @@ static void usage(const char *argv0) {
 #if LINUX || FREEBSD || SUN
 		   "  -z \t\t\tDaemonize\n"
 #endif
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 		   "  -Z <rate>\t\tReport rate to server in helo as the maximum sample rate we can support\n"
 #endif
 		   "  -t \t\t\tLicense terms\n"
@@ -182,6 +186,9 @@ static void usage(const char *argv0) {
 #else
 #if RESAMPLE
 		   " RESAMPLE"
+#endif
+#if RESAMPLE16
+		   " RESAMPLE16"
 #endif
 #endif
 #if FFMPEG
@@ -339,7 +346,7 @@ int main(int argc, char **argv) {
  * only allow '-Z <rate>' override of maxSampleRate 
  * reported by client if built with the capability to resample!
  */
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 				   "Z"
 #endif
 				   , opt) && optind < argc - 1) {
@@ -349,7 +356,7 @@ int main(int argc, char **argv) {
 #if ALSA
 						  "LX"
 #endif
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 						  "uR"
 #endif
 #if DSD
@@ -531,7 +538,7 @@ int main(int argc, char **argv) {
 			exit(0);
 			break;
 #endif			
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 		case 'u':
 		case 'R':
 			if (optind < argc && argv[optind] && argv[optind][0] != '-') {
@@ -783,7 +790,7 @@ else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
 
 	decode_init(log_decode, include_codecs, exclude_codecs);
 
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 	if (resample) {
 		process_init(resample);
 	}

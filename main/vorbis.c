@@ -348,7 +348,7 @@ struct codec *register_vorbis(void) {
 	static struct codec ret = {
 		'o',          // id
 		"ogg",        // types
-		2048,         // min read
+		4096,         // min read
 		20480,        // min space
 		vorbis_open,  // open
 		vorbis_close, // close

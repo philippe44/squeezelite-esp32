@@ -39,7 +39,7 @@ extern struct codec *codec;
 
 // macros to map to processing functions - currently only resample.c
 // this can be made more generic when multiple processing mechanisms get added
-#if RESAMPLE
+#if RESAMPLE || RESAMPLE16
 #define SAMPLES_FUNC resample_samples
 #define DRAIN_FUNC   resample_drain
 #define NEWSTREAM_FUNC resample_newstream

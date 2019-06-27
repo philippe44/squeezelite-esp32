@@ -323,8 +323,8 @@ bool resample_init(char *opt) {
 	r->scale = pow(10, -1.0 / 20);
 	// override recipe derived values with user specified values
 	r->q_precision = 0;
-	r->q_passband_end = 0;
-	r->q_stopband_begin = 0;
+	r->q_passband_end = 0.75;
+	r->q_stopband_begin = 1.25;
 
 	if (recipe && recipe[0] != '\0') {
 		if (strchr(recipe, 'v')) r->q_recipe = SOXR_VHQ;
