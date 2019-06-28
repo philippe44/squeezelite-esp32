@@ -74,11 +74,18 @@ typedef int            WORD;
 typedef unsigned int   UWORD;
 
 struct resample16_s;
+typedef struct {
+	UHWORD LpScl;               /* Unity-gain scale factor */
+	UHWORD Nwing;               /* Filter table size */
+	UHWORD Nmult;               /* Filter length for up-conversions */
+	const HWORD *Imp;           /* Filter coefficients */
+	const HWORD *ImpD;          /* ImpD[n] = Imp[n+1]-Imp[n] */
+} resample16_filter_t;
 
-typedef enum { RESAMPLE16_FAST, RESAMPLE16_SMALL, RESAMPLE16_LARGE, RESAMPLE_CUSTOM } resample16_filter_e;
+typedef enum { RESAMPLE16_BASIC, RESAMPLE16_LOW, RESAMPLE16_MED } resample16_filter_e;
 
 WORD 				resample16(struct resample16_s *r, HWORD X[],	int inCount, HWORD Y[]);
-struct resample16_s*  resample16_create(double factor, resample16_filter_e filter, BOOL interp);
+struct resample16_s*  resample16_create(float factor, resample16_filter_e filter, resample16_filter_t *custom, BOOL interp);
 void 				resample16_delete(struct resample16_s *r);
 void 				resample16_flush(struct resample16_s *r);
 

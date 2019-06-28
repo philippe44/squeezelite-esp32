@@ -112,8 +112,8 @@ static void usage(const char *argv0) {
 		   "  \t\t\t phase_response = 0-100 (0 = minimum / 50 = linear / 100 = maximum)\n"
 #endif
 #if RESAMPLE16
-		   "  -R -u [params]\tResample, params = (i|m)[:i],\n" 
-		   "   \t\t\t i = linear interpolation, m =  13 taps filter, i = interpolate filter coefficients\n"
+		   "  -R -u [params]\tResample, params = (b|l|m)[:i],\n" 
+		   "   \t\t\t b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients\n"
 #endif
 #if DSD
 #if ALSA

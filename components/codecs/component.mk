@@ -12,7 +12,6 @@ COMPONENT_ADD_LDFLAGS=-l$(COMPONENT_NAME) 	\
 	$(COMPONENT_PATH)/lib/libresample16.a		\
 	$(COMPONENT_PATH)/lib/libsoxr.a
 	
-	
 	#$(COMPONENT_PATH)/lib/libfaad.a 	
 	#$(COMPONENT_PATH)/lib/libvorbisidec.a
 	#$(COMPONENT_PATH)/lib/libogg.a

@@ -116,7 +116,7 @@ bool resample_newstream(struct processstate *process, unsigned raw_sample_rate, 
 	if (raw_sample_rate != outrate) {
 
 		LOG_INFO("resampling from %u -> %u", raw_sample_rate, outrate);
-		r.resampler = resample16_create((float) outrate / raw_sample_rate, RESAMPLE16_SMALL, false);
+		r.resampler = resample16_create((float) outrate / raw_sample_rate, r.filter, NULL, false);
 
 		return true;
 
@@ -147,8 +147,9 @@ bool resample_init(char *opt) {
 	}
 
 	if (filter) {
-		if (*filter == 'm') r.filter = RESAMPLE16_SMALL;
-		else r.filter = RESAMPLE16_FAST;
+		if (*filter == 'm') r.filter = RESAMPLE16_MED;
+		else if (*filter == 'l') r.filter = RESAMPLE16_LOW;
+		else r.filter = RESAMPLE16_BASIC;
 	}
 
 	if (interp && *interp == 'i') {
