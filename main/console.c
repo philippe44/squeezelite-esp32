@@ -22,6 +22,7 @@
 #include "nvs_flash.h"
 #include "pthread.h"
 #include "platform_esp32.h"
+#include "esp_pthread.h"
 #include "cmd_decl.h"
 #include "console.h"
 

@@ -287,10 +287,10 @@
 #include <sys/types.h>
 #endif /* SUN */
 
-#define STREAM_THREAD_STACK_SIZE  64 * 1024
-#define DECODE_THREAD_STACK_SIZE 128 * 1024
-#define OUTPUT_THREAD_STACK_SIZE  64 * 1024
-#define IR_THREAD_STACK_SIZE      64 * 1024
+#define STREAM_THREAD_STACK_SIZE  8 * 1024
+#define DECODE_THREAD_STACK_SIZE 20 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
+#define IR_THREAD_STACK_SIZE      8 * 1024
 #if !OSX
 #define thread_t pthread_t;
 #endif

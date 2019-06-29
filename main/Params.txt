@@ -1,0 +1,24 @@
+LWIP
+Enable Copy between L2 and L3 no (no)
+Default receive window size 32768 (5740)
+Default transmit window size 8192 (5740)
+TCP:Default TCP receive mail box size 32 (6)
+
+WiFi
+Max number of WiFi static RX buffer 12-16 (6)
+Max number of WiFi dynamic buffer 24-64 (16 or 10)
+Max number of WiFi static TX buffer 12-16 (6)
+
+SPI RAM
+Maximum malloc() to always put in internal memory 512 (2048)
+
+MBED_TLS
+Memory allocation strategy: external
+
+Put .bss in SPIRAM?
+
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'RIVAARENA'\" -b 500:2000 -d all=info -m ESP32 -R -Z 96000 -r \"44100-44100\" -e flac"
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'RIVAARENA'\" -b 500:2000 -d all=info -m ESP32 -R -Z 96000 -r \"44100-44100\""
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'RIVAARENA'\" -b 500:2000 -d all=info -m ESP32 -R -u m -Z 192000 -r \"44100-44100\" -s 192.168.2.144"
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'RIVAARENA'\" -b 500:2000 -d all=info -m ESP32 -r \"44100-44100\" -e flac"
+nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32 -R -Z 96000 -r \"44100-44100\""

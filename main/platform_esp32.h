@@ -21,24 +21,10 @@
  
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "esp_pthread.h"
-
-#ifndef QUOTE
-#define QUOTE(name) #name
-#endif
-
-#define ESP_LOG_DEBUG_EVENT(tag,e) ESP_LOGD(tag,"evt: " e)
 
 extern void run_command(char * line);
 extern bool wait_for_wifi();
 extern void console_start();
 extern pthread_cond_t wifi_connect_suspend_cond;
 extern pthread_t wifi_connect_suspend_mutex;
-
-#ifdef __cplusplus
-}
-#endif

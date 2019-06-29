@@ -64,6 +64,5 @@ $RECYCLE.BIN/
 libs/
 
 /cdump.cmd
-/_codecs
+/_*
 sdkconfig
-/tmp

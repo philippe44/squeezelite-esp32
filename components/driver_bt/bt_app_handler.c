@@ -17,8 +17,7 @@
 #include "argtable3/argtable3.h"
 
 #include "bt_app_core.h"
-
-#include "platform_esp32.h"
+#include "trace.h"
 
 static const char * TAG = "platform";
 
