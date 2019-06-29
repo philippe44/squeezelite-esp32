@@ -17,7 +17,7 @@
 #include "nvs_flash.h"
 //extern char current_namespace[];
 static const char * TAG = "squeezelite_cmd";
-#define SQUEEZELITE_THREAD_STACK_SIZE 32000
+#define SQUEEZELITE_THREAD_STACK_SIZE 8192
 extern int main(int argc, char **argv);
 static int launchsqueezelite(int argc, char **argv);
 pthread_t thread_squeezelite;
@@ -59,10 +59,8 @@ static void * squeezelite_thread(){
     cfg.inherit_cfg = true;
     cfg.stack_size = SQUEEZELITE_THREAD_STACK_SIZE ;
     esp_pthread_set_cfg(&cfg);
-    pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_create(&thread_squeezelite_runner, &attr, squeezelite_runner_thread,NULL);
-	pthread_attr_destroy(&attr);
+	// no attribute if we want esp stack stack to prevail
+    pthread_create(&thread_squeezelite_runner, NULL, squeezelite_runner_thread,NULL);
 	// Wait for thread completion so we can free up memory.
 	pthread_join(thread_squeezelite_runner,(void **)&exit_code);
 

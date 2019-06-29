@@ -28,11 +28,11 @@ extern struct buffer *outputbuf;
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
-extern void set_volume_i2s(unsigned left, unsigned right);
 extern void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, 
 						  unsigned rates[], unsigned rate_delay, unsigned idle);
 extern void output_init_i2s(log_level level, char *device, unsigned output_buf_size, char *params, 
-						  unsigned rates[], unsigned rate_delay, unsigned idle);							  
+						  unsigned rates[], unsigned rate_delay, unsigned idle);					
+extern void output_close_i2s(void); 
 
 static log_level loglevel;
 
@@ -54,9 +54,8 @@ void output_init_embedded(log_level level, char *device, unsigned output_buf_siz
 		output_init_bt(level, device, output_buf_size, params, rates, rate_delay, idle);
 	} else {
 		LOG_INFO("init I2S");
-		//volume_cb = set_volume_i2s;
-		//close_cb = output_close_i2s;
-		//output_init_i2s(level, device, output_buf_size, params, rates, rate_delay, idle);
+		close_cb = output_close_i2s;
+		output_init_i2s(level, device, output_buf_size, params, rates, rate_delay, idle);
 	}	
 	
 	LOG_INFO("init completed.");
