@@ -373,7 +373,7 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 	buf_init(streambuf, stream_buf_size);
 	if (streambuf->buf == NULL) {
 		LOG_ERROR("unable to malloc buffer");
-		local_exit(0);
+		exit(0);
 	}
 	
 #if USE_SSL
@@ -405,8 +405,8 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 #if LINUX || FREEBSD
 	touch_memory(streambuf->buf, streambuf->size);
 #endif
-PTHREAD_SET_NAME("stream");
-#if LINUX || OSX || FREEBSD || POSIX
+
+#if LINUX || OSX || FREEBSD || EMBEDDED
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 #ifdef PTHREAD_STACK_MIN	
@@ -414,6 +414,9 @@ PTHREAD_SET_NAME("stream");
 #endif
 	pthread_create(&thread, &attr, stream_thread, NULL);
 	pthread_attr_destroy(&attr);
+#if HAS_PTHREAD_SETNAME_NP	
+	pthread_setname_np(thread, "stream");
+#endif
 #endif
 #if WIN
 	thread = CreateThread(NULL, STREAM_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&stream_thread, NULL, 0, NULL);

@@ -1,54 +1,32 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include "esp_log.h"
-#include "esp_system.h"
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
+
+#include "esp_log.h"
 #include "esp_bt.h"
 #include "esp_bt_device.h"
 #include "esp_bt_main.h"
 #include "esp_gap_bt_api.h"
 #include "esp_a2dp_api.h"
-#include "esp_avrc_api.h"
 #include "esp_console.h"
 #include "esp_pthread.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/task.h"
 #include "freertos/timers.h"
-#include "nvs.h"
-#include "nvs_flash.h"
-#include "nvs_utilities.h"
-#include "pthread.h"
-#include "string.h"
-//#include "esp_event.h"
-#include "sys/socket.h"
-#include <signal.h>
-
-#include <signal.h>
-#include "platform_esp32.h"
-#include "../../main/squeezelite.h"
 #include "argtable3/argtable3.h"
 
-#define STATS_REPORT_DELAY_MS 15000
+#include "bt_app_core.h"
+
+#include "platform_esp32.h"
+
 static const char * TAG = "platform";
-extern char * get_output_state_desc(output_state state);
 
-extern struct outputstate output;
-extern struct buffer *outputbuf;
-extern struct buffer *streambuf;
-extern uint8_t * btout;
-time_t disconnect_time=0;
-#define LOCK_S   pthread_mutex_lock(&(streambuf->mutex))
-#define UNLOCK_S pthread_mutex_unlock(&(streambuf->mutex))
+extern int32_t 	output_bt_data(uint8_t *data, int32_t len);
+extern void 	output_bt_tick(void);
+extern char*	output_state_str(void);
+extern bool		output_stopped(void);
 
-#define LOCK   pthread_mutex_lock(&(outputbuf->mutex))
-#define UNLOCK pthread_mutex_unlock(&(outputbuf->mutex))
 int64_t connecting_timeout = 0;
 
 static const char *  art_a2dp_connected[]={"\n",
@@ -76,33 +54,7 @@ static void bt_app_av_state_connecting(uint16_t event, void *param);
 #define A2DP_TIMER_INIT connecting_timeout = esp_timer_get_time() +(CONFIG_A2DP_CONNECT_TIMEOUT_MS * 1000)
 #define IS_A2DP_TIMER_OVER esp_timer_get_time() >= connecting_timeout
 
-#define FRAME_TO_BYTES(f) f*BYTES_PER_FRAME
-#define BYTES_TO_FRAME(b) b/BYTES_PER_FRAME
-
-
-#define RESET_ALL_MIN_MAX RESET_MIN_MAX(req); RESET_MIN_MAX(rec); RESET_MIN_MAX(bt);RESET_MIN_MAX(under); RESET_MIN_MAX_DURATION(stream_buf); RESET_MIN_MAX_DURATION(lock_out_time)
-
-DECLARE_MIN_MAX(stream_buf);
-DECLARE_MIN_MAX(req);
-DECLARE_MIN_MAX(rec);
-DECLARE_MIN_MAX(bt);
-DECLARE_MIN_MAX(under);
-DECLARE_MIN_MAX_DURATION(lock_out_time);
-
 static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param);
-
-void get_mac(u8_t mac[]) {
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-}
-
-_sig_func_ptr signal(int sig, _sig_func_ptr func) {
-	return NULL;
-}
-
-void *audio_calloc(size_t nmemb, size_t size) {
-		return calloc(nmemb, size);
-}
-
 
 /* event for handler "bt_av_hdl_stack_up */
 enum {
@@ -181,15 +133,11 @@ static struct {
 void hal_bluetooth_init(const char * options)
 {
 	ESP_LOGD(TAG,"Initializing Bluetooth HAL");
-	//CONFIG_A2DP_SINK_NAME
-	//CONFIG_A2DP_CONTROL_DELAY_MS
-	//CONFIG_A2DP_CONNECT_TIMEOUT_MS
 
 	squeezelite_args.sink_name = arg_str1("n", "name", "<sink name>", "the name of the bluetooth to connect to");
 	squeezelite_args.control_delay = arg_int0("d", "delay", "<control delay>", "the delay between each pass at the A2DP control loop");
 	squeezelite_args.connect_timeout_delay = arg_int0("t","timeout", "<timeout>", "the timeout duration for connecting to the A2DP sink");
 	squeezelite_args.end = arg_end(2);
-
 
 	ESP_LOGD(TAG,"Copying parameters");
 	char * opts = strdup(options);
@@ -280,42 +228,7 @@ void hal_bluetooth_init(const char * options)
 	esp_bt_gap_set_pin(pin_type, 0, pin_code);
 
 }
-static int32_t bt_app_a2d_data_cb(uint8_t *data, int32_t len)
-{
-	int32_t avail_data=0,wanted_len=0, start_timer=0;
 
-	if (len < 0 || data == NULL ) {
-		return 0;
-	}
-	btout=data;
-
-	// This is how the BTC layer calculates the number of bytes to
-	// for us to send. (BTC_SBC_DEC_PCM_DATA_LEN * sizeof(OI_INT16) - availPcmBytes
-	wanted_len=len;
-	SET_MIN_MAX(len,req);
-	TIME_MEASUREMENT_START(start_timer);
-	LOCK;
-	output.device_frames = 0; // todo: check if this is the right way do to this.
-	output.updated = gettime_ms();
-	output.frames_played_dmp = output.frames_played;
-	SET_MIN_MAX_SIZED(_buf_used(outputbuf),bt,outputbuf->size);
-	do {
-		avail_data = _output_frames( wanted_len/BYTES_PER_FRAME )*BYTES_PER_FRAME; // Keep the transfer buffer full
-		wanted_len-=avail_data;
-	} while (wanted_len > 0 && avail_data != 0);
-	if(wanted_len>0)
-	{
-		SET_MIN_MAX(wanted_len, under);
-	}
-
-	UNLOCK;
-	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);
-	SET_MIN_MAX((len-wanted_len), rec);
-	TIME_MEASUREMENT_START(start_timer);
-	output_bt_check_buffer();
-
-	return len-wanted_len;
-}
 static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 {
     bt_app_work_dispatch(bt_app_av_sm_hdlr, event, param, sizeof(esp_a2d_cb_param_t), NULL);
@@ -415,10 +328,10 @@ static void bt_app_av_sm_hdlr(uint16_t event, void *param)
 {
     switch (s_a2d_state) {
     case APP_AV_STATE_DISCOVERING:
-    	ESP_LOGV(TAG,"state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, get_output_state_desc(output.state));
+    	ESP_LOGV(TAG,"state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, output_state_str());
     	break;
     case APP_AV_STATE_DISCOVERED:
-    	ESP_LOGV(TAG,"state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, get_output_state_desc(output.state));
+    	ESP_LOGV(TAG,"state %s, evt 0x%x, output state: %s", APP_AV_STATE_DESC[s_a2d_state], event, output_state_str());
         break;
     case APP_AV_STATE_UNCONNECTED:
         bt_app_av_state_unconnected(event, param);
@@ -562,7 +475,6 @@ static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param)
     }
 }
 
-
 static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
 {
 
@@ -579,7 +491,7 @@ static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
 
         /* initialize A2DP source */
         esp_a2d_register_callback(&bt_app_a2d_cb);
-        esp_a2d_source_register_data_callback(bt_app_a2d_data_cb);
+        esp_a2d_source_register_data_callback(&output_bt_data);
         esp_a2d_source_init();
 
         /* set discoverable and connectable mode */
@@ -605,39 +517,15 @@ static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
     }
 }
 
-#ifdef BTAUDIO
-bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
-
-//	running_test  = true;
-//	while(running_test)
-//	{
-//		// wait until BT playback has started
-//		// this will allow querying the sample rate
-//		usleep(100000);
-//	}
-
-	memset(rates, 0, MAX_SUPPORTED_SAMPLERATES * sizeof(unsigned));
-	if (!strcmp(device, "BT")) {
-		rates[0] = 44100;
-	} else {
-		unsigned _rates[] = { 96000, 88200, 48000, 44100, 32000, 0 };
-		memcpy(rates, _rates, sizeof(_rates));
-	}
-	return true;
-}
-#endif
 static void bt_app_av_media_proc(uint16_t event, void *param)
 {
     esp_a2d_cb_param_t *a2d = NULL;
-    LOCK;
-    output_state out_state=output.state;
-    UNLOCK;
     switch (s_media_state) {
     case APP_AV_MEDIA_STATE_IDLE: {
     	if (event == BT_APP_HEART_BEAT_EVT) {
-            if(out_state > OUTPUT_STOPPED)
+            if(!output_stopped())
             {
-            	ESP_LOGI(TAG,"Output state is %s, Checking if A2DP is ready.", get_output_state_desc(out_state));
+            	ESP_LOGI(TAG,"Output state is %s, Checking if A2DP is ready.", output_state_str());
             	esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_CHECK_SRC_RDY);
             }
 
@@ -671,40 +559,12 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     }
     case APP_AV_MEDIA_STATE_STARTED: {
         if (event == BT_APP_HEART_BEAT_EVT) {
-        	if(out_state <= OUTPUT_STOPPED) {
-        		ESP_LOGI(TAG,"Output state is %s. Stopping a2dp media ...", get_output_state_desc(out_state));
+        	if(output_stopped()) {
+        		ESP_LOGI(TAG,"Output state is %s. Stopping a2dp media ...", output_state_str());
                 s_media_state = APP_AV_MEDIA_STATE_STOPPING;
                 esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
-            }
-        	else
-        	{
-        		LOCK_S;
-        		SET_MIN_MAX_SIZED(_buf_used(streambuf),stream_buf,streambuf->size);
-        		UNLOCK_S;
-        		static time_t lastTime=0;
-        		if (lastTime <= gettime_ms() )
-				{
-					lastTime = gettime_ms() + 15000;
-					ESP_LOGD(TAG, "Statistics over %u secs. " , STATS_REPORT_DELAY_MS/1000);
-					ESP_LOGD(TAG, "              +==========+==========+================+=====+================+");
-					ESP_LOGD(TAG, "              |      max |      min |        average | avg |          count |");
-					ESP_LOGD(TAG, "              |  (bytes) |  (bytes) |        (bytes) | pct |                |");
-					ESP_LOGD(TAG, "              +==========+==========+================+=====+================+");
-					ESP_LOGD(TAG,LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("stream avl",stream_buf));
-					ESP_LOGD(TAG,LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output avl",bt));
-					ESP_LOGD(TAG,LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
-					ESP_LOGD(TAG,LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-					ESP_LOGD(TAG,LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("underrun",under));
-					ESP_LOGD(TAG, "              +==========+==========+================+=====+================+");
-					ESP_LOGD(TAG,"\n");
-					ESP_LOGD(TAG,"              ==========+==========+===========+===========+  ");
-					ESP_LOGD(TAG,"              max (us)  | min (us) |   avg(us) |  count    |  ");
-					ESP_LOGD(TAG,"              ==========+==========+===========+===========+  ");
-					ESP_LOGD(TAG,LINE_MIN_MAX_DURATION_FORMAT,LINE_MIN_MAX_DURATION("Out Buf Lock",lock_out_time));
-					ESP_LOGD(TAG,"              ==========+==========+===========+===========+");
-					RESET_ALL_MIN_MAX;
-				}
-
+            } else {
+				output_bt_tick();	
         	}
         }
         break;
@@ -716,16 +576,7 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
             if (a2d->media_ctrl_stat.cmd == ESP_A2D_MEDIA_CTRL_STOP &&
                     a2d->media_ctrl_stat.status == ESP_A2D_MEDIA_CTRL_ACK_SUCCESS) {
                 ESP_LOGI(TAG,"a2dp media stopped successfully...");
-                //s_media_state = APP_AV_MEDIA_STATE_WAIT_DISCONNECT;
-              //  if(CONFIG_A2DP_DISCONNECT_MS==0){
-                	// we're not going to disconnect.
-                	s_media_state = APP_AV_MEDIA_STATE_IDLE;
-//                }
-//                else
-//                {
-//                	disconnect_time = gettime_ms()+CONFIG_A2DP_DISCONNECT_MS;
-//                	s_media_state = APP_AV_MEDIA_STATE_WAIT_DISCONNECT;
-//                }
+               	s_media_state = APP_AV_MEDIA_STATE_IDLE;
             } else {
                 ESP_LOGI(TAG,"a2dp media stopping...");
                 esp_a2d_media_ctrl(ESP_A2D_MEDIA_CTRL_STOP);
@@ -735,20 +586,15 @@ static void bt_app_av_media_proc(uint16_t event, void *param)
     }
 
     case APP_AV_MEDIA_STATE_WAIT_DISCONNECT:{
-    	if(gettime_ms()>disconnect_time){
-    		// we've reached timeout
-			esp_a2d_source_disconnect(s_peer_bda);
-			s_a2d_state = APP_AV_STATE_DISCONNECTING;
-    	}
+    	esp_a2d_source_disconnect(s_peer_bda);
+		s_a2d_state = APP_AV_STATE_DISCONNECTING;
+		ESP_LOGI(TAG,"a2dp disconnecting...");
     }
     }
 }
 
 static void bt_app_av_state_unconnected(uint16_t event, void *param)
 {
-//	LOCK;
-//	output_state out_state= output.state;
-//	UNLOCK;
 	switch (event) {
     case ESP_A2D_CONNECTION_STATE_EVT:
     	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_CONNECTION_STATE_EVT));
@@ -772,8 +618,6 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
     	ESP_LOG_DEBUG_EVENT(TAG,QUOTE(ESP_A2D_MEDIA_CTRL_ACK_EVT));
     	break;
     case BT_APP_HEART_BEAT_EVT: {
-       // uint8_t *p = s_peer_bda;
-       // ESP_LOGI(TAG,"BT_APP_HEART_BEAT_EVT a2dp connecting to peer: %02x:%02x:%02x:%02x:%02x:%02x",p[0], p[1], p[2], p[3], p[4], p[5]);
         switch (esp_bluedroid_get_status()) {
 		case ESP_BLUEDROID_STATUS_UNINITIALIZED:
 			ESP_LOGV(TAG,"BlueDroid Status is ESP_BLUEDROID_STATUS_UNINITIALIZED.");
@@ -787,21 +631,18 @@ static void bt_app_av_state_unconnected(uint16_t event, void *param)
 		default:
 			break;
 		}
-//        if(out_state > OUTPUT_STOPPED){
-        	// only attempt a connect when playback isn't stopped
-			for(uint8_t l=0;art_a2dp_connecting[l][0]!='\0';l++){
-				ESP_LOGI(TAG,"%s",art_a2dp_connecting[l]);
-			}
-			ESP_LOGI(TAG,"Device: %s", s_peer_bdname);
-			if(esp_a2d_source_connect(s_peer_bda)==ESP_OK) {
-				A2DP_TIMER_INIT;
-				s_a2d_state = APP_AV_STATE_CONNECTING;
-			}
-			else {
-				// there was an issue connecting... continue to discover
-				ESP_LOGE(TAG,"Attempt at connecting failed, restart at discover...");
-				esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
-	//		}
+		for(uint8_t l=0;art_a2dp_connecting[l][0]!='\0';l++){
+			ESP_LOGI(TAG,"%s",art_a2dp_connecting[l]);
+		}
+		ESP_LOGI(TAG,"Device: %s", s_peer_bdname);
+		if(esp_a2d_source_connect(s_peer_bda)==ESP_OK) {
+			A2DP_TIMER_INIT;
+			s_a2d_state = APP_AV_STATE_CONNECTING;
+		}
+		else {
+			// there was an issue connecting... continue to discover
+			ESP_LOGE(TAG,"Attempt at connecting failed, restart at discover...");
+			esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, 10, 0);
         }
         break;
     }
@@ -928,18 +769,4 @@ static void bt_app_av_state_disconnecting(uint16_t event, void *param)
         ESP_LOGE(TAG,"%s unhandled evt %d", __func__, event);
         break;
     }
-}
-const char *loc_logtime(void) {
-	static char buf[100];
-#if WIN
-	SYSTEMTIME lt;
-	GetLocalTime(&lt);
-	sprintf(buf, "[%02d:%02d:%02d.%03d]", lt.wHour, lt.wMinute, lt.wSecond, lt.wMilliseconds);
-#else
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	strftime(buf, sizeof(buf), "[%T.", localtime(&tv.tv_sec));
-	sprintf(buf+strlen(buf), "%06ld]", (long)tv.tv_usec);
-#endif
-	return buf;
 }

@@ -18,10 +18,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
- 
-#include "platform_esp32.h"
+#include "squeezelite.h"
+#include "esp_pthread.h"
+#include "esp_system.h"
 
-void app_main()
-{
-	console_start();
+void get_mac(u8_t mac[]) {
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
 }
+
+_sig_func_ptr signal(int sig, _sig_func_ptr func) {
+	return NULL;
+}
+
+void *audio_calloc(size_t nmemb, size_t size) {
+		return calloc(nmemb, size);
+}
+
+int pthread_setname_np(pthread_t thread, const char *name) { 
+	esp_pthread_cfg_t cfg = esp_pthread_get_default_config(); 
+	cfg.thread_name= name; 
+	cfg.inherit_cfg = true; 
+	return esp_pthread_set_cfg(&cfg); 
+}
+
+

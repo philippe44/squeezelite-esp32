@@ -169,6 +169,9 @@ static void usage(const char *argv0) {
 		   "18"
 #endif
 #endif
+#if EMBEDDED
+			" EMBEDDED"
+#endif	
 #if EVENTFD
 		   " EVENTFD"
 #endif
@@ -381,7 +384,7 @@ int main(int argc, char **argv) {
 		} else {
 			fprintf(stderr, "\nOption error: -%s\n\n", opt);
 			usage(argv[0]);
-			local_exit(1);
+			exit(1);
 		}
 
 		switch (opt[0]) {
@@ -432,7 +435,7 @@ int main(int argc, char **argv) {
 				} else {
 					fprintf(stderr, "\nDebug settings error: -d %s\n\n", optarg);
 					usage(argv[0]);
-					local_exit(1);
+					exit(1);
 				}
 			}
 			break;
@@ -532,7 +535,7 @@ int main(int argc, char **argv) {
 			pidfile = optarg;
 			break;
 #endif
-#if !CONFIG_DACAUDIO && !CONFIG_BTAUDIO
+#ifndef EMBEDDED
 		case 'l':
 			list_devices();
 			exit(0);
@@ -675,12 +678,11 @@ int main(int argc, char **argv) {
 #endif
 		case 't':
 			license();
-			local_exit(0);
-			break; // mute compiler warning
+			exit(0);
 		case '?':
 			usage(argv[0]);
-			local_exit(0);
-			break; // mute compiler warning
+			exit(0);
+			break;
 		default:
 			fprintf(stderr, "Arg error: %s\n", argv[optind]);
 			break;
@@ -691,7 +693,7 @@ int main(int argc, char **argv) {
 	if (optind < argc) {
 		fprintf(stderr, "\nError: command line argument error\n\n");
 		usage(argv[0]);
-		local_exit(1);
+		exit(1);
 	}
 
 	signal(SIGINT, sighandler);
@@ -757,13 +759,9 @@ int main(int argc, char **argv) {
 #endif
 
 	stream_init(log_stream, stream_buf_size);
-#ifdef EMBEDDED
-if(strstr(output_device,"BT")!=NULL || strstr(output_device,"bt")!=NULL) {
-	output_init_bt(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
-}
-else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
-	output_init_dac(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
-}
+
+#if EMBEDDED
+	output_init_embedded(log_output, output_device, output_buf_size, output_params, rates, rate_delay, idle);
 #else
 	if (!strcmp(output_device, "-")) {
 		output_init_stdout(log_output, output_buf_size, output_params, rates, rate_delay);
@@ -804,7 +802,7 @@ else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
 
 	if (name && namefile) {
 		fprintf(stderr, "-n and -N option should not be used at same time\n");
-		local_exit(1);
+		exit(1);
 	}
 
 	slimproto(log_slimproto, server, mac, name, namefile, modelname, maxSampleRate);
@@ -812,10 +810,8 @@ else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
 	decode_close();
 	stream_close();
 
-#if CONFIG_DACAUDIO
-	output_close_dac();	
-#elif CONFIG_BTAUDIO
-	output_close_bt();
+#if EMBEDDED
+	output_close_embedded();	
 #else
 	if (!strcmp(output_device, "-")) {
 		output_close_stdout();
@@ -848,5 +844,5 @@ else if(strstr(output_device,"DAC")!=NULL || strstr(output_device,"dac")!=NULL){
 	free_ssl_symbols();
 #endif	
 
-	local_exit(0);
+	exit(0);
 }

@@ -436,13 +436,8 @@ static void process_audg(u8_t *pkt, int len) {
 	audg->gainR = unpackN(&audg->gainR);
 
 	LOG_DEBUG("audg gainL: %u gainR: %u adjust: %u", audg->gainL, audg->gainR, audg->adjust);
-#if CONFIG_BTAUDIO
-	set_volume_bt(audg->adjust ? audg->gainL : FIXED_ONE, audg->adjust ? audg->gainR : FIXED_ONE);
-#elif CONFIG_DACAUDIO
-	set_volume_dac(audg->adjust ? audg->gainL : FIXED_ONE, audg->adjust ? audg->gainR : FIXED_ONE);
-#else
+
 	set_volume(audg->adjust ? audg->gainL : FIXED_ONE, audg->adjust ? audg->gainR : FIXED_ONE);
-#endif
 }
 
 static void process_setd(u8_t *pkt, int len) {

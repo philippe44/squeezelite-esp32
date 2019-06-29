@@ -21,7 +21,7 @@
 
 #include "squeezelite.h"
 
-#if LINUX || OSX || FREEBSD || POSIX
+#if LINUX || OSX || FREEBSD || EMBEDDED
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netdb.h>
@@ -103,7 +103,7 @@ u32_t gettime_ms(void) {
 #if WIN
 	return GetTickCount();
 #else
-#if LINUX || FREEBSD || POSIX
+#if LINUX || FREEBSD || EMBEDDED
 	struct timespec ts;
 #ifdef CLOCK_MONOTONIC
 	if (!clock_gettime(CLOCK_MONOTONIC, &ts)) {
@@ -561,77 +561,3 @@ char *strcasestr(const char *haystack, const char *needle) {
 	return NULL;
 }
 #endif
-uint8_t get_bytes_per_frame(output_format fmt)
-{
-	uint8_t bpf=0;
-
-	switch (fmt) {
-		case S32_LE:
-			bpf=4*2;
-			break;
-		case S24_LE:
-			bpf=3*2;
-			break;
-		case S24_3LE:
-			bpf=3*2;
-			break;
-		case S16_LE:
-			bpf=2*2;
-			break;
-		case S24_BE:
-			bpf=3*2;
-			break;
-		case S24_3BE:
-			bpf=3*2;
-			break;
-		case S16_BE:
-			bpf=2*2;
-			break;
-		case S8_BE:
-			bpf=2*2;
-			break;
-#if DSD
-		case U8:
-			bpf=1*2;
-			break;
-		case U16_LE:
-			bpf=2*2;
-			break;
-		case U16_BE:
-			bpf=2*2;
-			break;
-		case U32_LE:
-			bpf=4*2;
-			break;
-		case U32_BE:
-			bpf=4*2;
-			break;
-#endif
-		default:
-			break;
-	}
-	assert(bpf>0);
-	return bpf;
-}
-
-char * get_output_state_desc(output_state state){
-	switch (state) {
-	case OUTPUT_OFF:
-		return STR(OUTPUT_OFF);
-	case OUTPUT_STOPPED:
-		return STR(OUTPUT_STOPPED);
-	case OUTPUT_BUFFER:
-		return STR(OUTPUT_BUFFER);
-	case OUTPUT_RUNNING:
-		return STR(OUTPUT_RUNNING);
-	case OUTPUT_PAUSE_FRAMES:
-		return STR(OUTPUT_PAUSE_FRAMES);
-	case OUTPUT_SKIP_FRAMES:
-		return STR(OUTPUT_SKIP_FRAMES);
-	case OUTPUT_START_AT:
-		return STR(OUTPUT_START_AT);
-	default:
-		return "OUTPUT_UNKNOWN_STATE";
-	}
-	return "";
-}

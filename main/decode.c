@@ -199,8 +199,8 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	LOG_DEBUG("include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
 
 	mutex_create(decode.mutex);
-	PTHREAD_SET_NAME("decode");
-#if LINUX || OSX || FREEBSD || POSIX
+
+#if LINUX || OSX || FREEBSD || EMBEDDED
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 #ifdef PTHREAD_STACK_MIN
@@ -208,6 +208,9 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 #endif
 	pthread_create(&thread, &attr, decode_thread, NULL);
 	pthread_attr_destroy(&attr);
+#if HAS_PTHREAD_SETNAME_NP	
+	pthread_setname_np(thread, "decode");
+#endif
 #endif
 #if WIN
 	thread = CreateThread(NULL, DECODE_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&decode_thread, NULL, 0, NULL);

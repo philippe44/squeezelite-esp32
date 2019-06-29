@@ -7,6 +7,7 @@
 
 #include "esp_log.h"
 #include "esp_console.h"
+#include "esp_pthread.h"
 #include "argtable3/argtable3.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"

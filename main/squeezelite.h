@@ -34,6 +34,7 @@
 #define VERSION "v" MAJOR_VERSION "." MINOR_VERSION "-" MICRO_VERSION
 #endif
 
+
 #if !defined(MODEL_NAME)
 #define MODEL_NAME SqueezeLite
 #endif
@@ -42,16 +43,11 @@
 #define STR(macro)  QUOTE(macro)
 #define MODEL_NAME_STRING STR(MODEL_NAME)
 
-#if defined(EMBEDDED)
-#define POSIX 1
-#include "embedded.h"
-#endif
-#ifndef PTHREAD_SET_NAME
-#define PTHREAD_SET_NAME(n)
-#endif
-
-// build detection
-#if defined(linux)
+// build detection 
+#if defined (EMBEDDED)
+#undef EMBEDDED
+#define EMBEDDED  1
+#elif defined(linux)
 #define LINUX     1
 #define OSX       0
 #define WIN       0
@@ -78,26 +74,18 @@
 #define PA18API   1
 #define OSX       0
 #define WIN       0
-#elif defined (POSIX)
-#undef POSIX
-#define POSIX 	  1
 #else
 #error unknown target
 #endif
 
-
-#if defined(CONFIG_DACAUDIO)
-#undef CONFIG_DACAUDIO
-#define CONFIG_DACAUDIO  1
-#elif defined(CONFIG_BTAUDIO)
-#undef CONFIG_BTAUDIO
-#define CONFIG_BTAUDIO 1
-#elif LINUX && !defined(PORTAUDIO)
+#if !EMBEDDED
+#if LINUX && !defined(PORTAUDIO)
 #define ALSA      1
 #define PORTAUDIO 0
 #else
 #define ALSA      0
 #define PORTAUDIO 1
+#endif
 #endif
 
 #if !defined(LOOPBACK)
@@ -278,18 +266,18 @@
 #include <limits.h>
 #include <sys/types.h>
 
-#if LINUX || OSX || FREEBSD || POSIX
+#if EMBEDDED
+#include "embedded.h"
+#endif
+	
+#if LINUX || OSX || FREEBSD || EMBEDDED
 #include <unistd.h>
 #include <stdbool.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/time.h>
 #include <sys/socket.h>
-#if POSIX
 #include <sys/poll.h>
-#else
-#include <poll.h>
-#endif
 #if !LINKALL
 #include <dlfcn.h>
 #endif
@@ -299,14 +287,10 @@
 #include <sys/types.h>
 #endif /* SUN */
 
-#ifndef PTHREAD_STACK_MIN
-#define PTHREAD_STACK_MIN	256
-#endif
-
-#define STREAM_THREAD_STACK_SIZE  8 * 1024
-#define DECODE_THREAD_STACK_SIZE 20 * 1024
-#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
-#define IR_THREAD_STACK_SIZE      8 * 1024
+#define STREAM_THREAD_STACK_SIZE  64 * 1024
+#define DECODE_THREAD_STACK_SIZE 128 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  64 * 1024
+#define IR_THREAD_STACK_SIZE      64 * 1024
 #if !OSX
 #define thread_t pthread_t;
 #endif
@@ -314,13 +298,12 @@
 #define last_error() errno
 #define ERROR_WOULDBLOCK EWOULDBLOCK
 
+#if !EMBEDDED
 #ifdef SUN
 typedef uint8_t  u8_t;
 typedef uint16_t u16_t;
 typedef uint32_t u32_t;
 typedef uint64_t u64_t;
-#elif POSIX
-typedef unsigned long long u64_t;
 #else
 typedef u_int8_t  u8_t;
 typedef u_int16_t u16_t;
@@ -330,29 +313,20 @@ typedef u_int64_t u64_t;
 typedef int16_t   s16_t;
 typedef int32_t   s32_t;
 typedef int64_t   s64_t;
+#endif
 
 #define mutex_type pthread_mutex_t
 #define mutex_create(m) pthread_mutex_init(&m, NULL)
-#if POSIX
-#define mutex_create_p(m) mutex_create(m)
-#else
+#if HAS_MUTEX_CREATE_P
 #define mutex_create_p(m) pthread_mutexattr_t attr; pthread_mutexattr_init(&attr); pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT); pthread_mutex_init(&m, &attr); pthread_mutexattr_destroy(&attr)
+#else
+#define mutex_create_p(m) mutex_create(m)
 #endif
 #define mutex_lock(m) pthread_mutex_lock(&m)
 #define mutex_unlock(m) pthread_mutex_unlock(&m)
 #define mutex_destroy(m) pthread_mutex_destroy(&m)
-#define mutex_broadcast_cond(m) pthread_cond_broadcast(&m)
-#define mutex_cond_wait(c,m) pthread_cond_wait(&c, &m)
-#define mutex_cond_init(c) pthread_cond_init(&c, NULL)
-#define thread_cond_type pthread_cond_t
 #define thread_type pthread_t
 #endif
-#ifdef EMBEDDED
-#define local_exit(r) {static int ret=r; pthread_exit(&ret);}
-#else
-#define local_exit(r) exit(r)
-#endif
-
 
 #if WIN
 
@@ -491,24 +465,7 @@ void logprint(const char *fmt, ...);
 #define LOG_INFO(fmt, ...)  if (loglevel >= lINFO)  logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_DEBUG(fmt, ...) if (loglevel >= lDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
 #define LOG_SDEBUG(fmt, ...) if (loglevel >= lSDEBUG) logprint("%s %s:%d " fmt "\n", logtime(), __FUNCTION__, __LINE__, ##__VA_ARGS__)
-static inline void DEBUG_LOG_TIMED(uint32_t delayms, char * strFmt, ...)
-{
-	static log_level loglevel;
-	va_list args;
-	va_start(args, strFmt);
-	static uint32_t nextDebugLog=0;
-	if(esp_timer_get_time()>nextDebugLog)
-	{
-		if (loglevel >= lDEBUG)
-		{
-			logprint("%s %s:%d ", logtime(), __FUNCTION__, __LINE__);
-			logprint(strFmt , args);
-			logprint("\n");
-		}
 
-		nextDebugLog=esp_timer_get_time()+delayms*1000;
-	}
-}
 // utils.c (non logging)
 typedef enum { EVENT_TIMEOUT = 0, EVENT_READ, EVENT_WAKE } event_type;
 #if WIN && USE_SSL
@@ -670,8 +627,6 @@ typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, U8, U16_LE, U16_BE, U32_LE, U32_
 #else
 typedef enum { S32_LE, S24_LE, S24_3LE, S16_LE, S24_BE, S24_3BE, S16_BE, S8_BE } output_format;
 #endif
-extern uint8_t get_bytes_per_frame(output_format fmt);
-
 
 typedef enum { FADE_INACTIVE = 0, FADE_DUE, FADE_ACTIVE } fade_state;
 typedef enum { FADE_UP = 1, FADE_DOWN, FADE_CROSS } fade_dir;
@@ -763,26 +718,17 @@ void output_close_pa(void);
 void _pa_open(void);
 #endif
 
-// output_dac.c
-
-void set_volume_dac(unsigned left, unsigned right);
+// output_embedded.c
+#if EMBEDDED
+void set_volume(unsigned left, unsigned right);
 bool test_open(const char *device, unsigned rates[], bool userdef_rates);
-void output_init_dac(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
-void output_close_dac(void);
-void hal_dac_init(const char * options);
-
-//output_bt.c
-void set_volume_bt(unsigned left, unsigned right);
-bool test_open(const char *device, unsigned rates[], bool userdef_rates);
-void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
-void output_close_bt(void);
-extern void hal_bluetooth_init(const char * options);
-void output_bt_check_buffer();
-
-
+void output_init_embedded(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle);
+void output_close_embedded(void);
+#else 
 // output_stdout.c
 void output_init_stdout(log_level level, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay);
 void output_close_stdout(void);
+#endif
 
 // output_pack.c
 void _scale_and_pack_frames(void *outputptr, s32_t *inputptr, frames_t cnt, s32_t gainL, s32_t gainR, output_format format);
