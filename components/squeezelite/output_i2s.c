@@ -25,26 +25,10 @@
 #include <signal.h>
 #include "time.h"
 
+#define LOCK   mutex_lock(outputbuf->mutex)
+#define UNLOCK mutex_unlock(outputbuf->mutex)
 
-#define DECLARE_ALL_MIN_MAX 	\
-	DECLARE_MIN_MAX(o); 		\
-	DECLARE_MIN_MAX(s); 		\
-	DECLARE_MIN_MAX(req); 		\
-	DECLARE_MIN_MAX(rec); 		\
-	DECLARE_MIN_MAX(over); 		\
-	DECLARE_MIN_MAX(i2s_time); 	\
-	DECLARE_MIN_MAX(buffering);
-
-#define RESET_ALL_MIN_MAX 		\
-	RESET_MIN_MAX(o); 			\
-	RESET_MIN_MAX(s); 			\
-	RESET_MIN_MAX(req);  		\
-	RESET_MIN_MAX(rec);  		\
-	RESET_MIN_MAX(over);  		\
-	RESET_MIN_MAX(i2s_time);	\
-	RESET_MIN_MAX(buffering);
-	
-#define STATS_PERIOD_MS 5000
+#define FRAME_BLOCK MAX_SILENCE_FRAMES
 
 // Prevent compile errors if dac output is
 // included in the build and not actually activated in menuconfig
@@ -61,10 +45,21 @@
 #define CONFIG_I2S_NUM -1
 #endif
 
-#define LOCK   mutex_lock(outputbuf->mutex)
-#define UNLOCK mutex_unlock(outputbuf->mutex)
+#define DECLARE_ALL_MIN_MAX 	\
+	DECLARE_MIN_MAX(o); 		\
+	DECLARE_MIN_MAX(s); 		\
+	DECLARE_MIN_MAX(rec); 		\
+	DECLARE_MIN_MAX(i2s_time); 	\
+	DECLARE_MIN_MAX(buffering);
 
-#define FRAME_BLOCK MAX_SILENCE_FRAMES
+#define RESET_ALL_MIN_MAX 		\
+	RESET_MIN_MAX(o); 			\
+	RESET_MIN_MAX(s); 			\
+	RESET_MIN_MAX(rec);	\
+	RESET_MIN_MAX(i2s_time);	\
+	RESET_MIN_MAX(buffering);
+	
+#define STATS_PERIOD_MS 5000
 
 extern struct outputstate output;
 extern struct buffer *streambuf;
@@ -253,7 +248,7 @@ static void *output_thread_i2s() {
 
 		frames = _output_frames( FRAME_BLOCK ); 
 		
-		SET_MIN_MAX(frames,rec);
+		SET_MIN_MAX_SIZED(frames,rec,FRAME_BLOCK);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
@@ -309,9 +304,7 @@ static void *output_thread_i2s_stats() {
 			LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
 			LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
-			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
-			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
 			LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
 			LOG_INFO("");
 			LOG_INFO("              ----------+----------+-----------+-----------+  ");
