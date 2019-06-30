@@ -305,11 +305,11 @@ static void *output_thread_i2s() {
 				isI2SStarted=true;
 				LOG_INFO("Restarting I2S.");
 				i2s_start(CONFIG_I2S_NUM);
-				if( i2s_config.sample_rate != output.current_sample_rate)
-				{
-					i2s_config.sample_rate = output.current_sample_rate;
-					i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
-				}
+			} 
+			if (i2s_config.sample_rate != output.current_sample_rate) {
+				LOG_INFO("changing sampling rate %u to %u", i2s_config.sample_rate, output.current_sample_rate);
+				i2s_config.sample_rate = output.current_sample_rate;
+				i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
 			}
 			count++;
 			LOG_SDEBUG("Outputting to I2S");

@@ -286,19 +286,17 @@
 #if SUN
 #include <sys/types.h>
 #endif /* SUN */
-
-#define STREAM_THREAD_STACK_SIZE  8 * 1024
-#define DECODE_THREAD_STACK_SIZE 20 * 1024
-#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
-#define IR_THREAD_STACK_SIZE      8 * 1024
 #if !OSX
 #define thread_t pthread_t;
 #endif
 #define closesocket(s) close(s)
 #define last_error() errno
 #define ERROR_WOULDBLOCK EWOULDBLOCK
-
 #if !EMBEDDED
+#define STREAM_THREAD_STACK_SIZE  64 * 1024
+#define DECODE_THREAD_STACK_SIZE 128 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  64 * 1024
+#define IR_THREAD_STACK_SIZE      64 * 1024
 #ifdef SUN
 typedef uint8_t  u8_t;
 typedef uint16_t u16_t;

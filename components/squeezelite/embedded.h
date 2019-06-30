@@ -10,6 +10,11 @@
 #define PTHREAD_STACK_MIN	256
 #endif
 
+#define STREAM_THREAD_STACK_SIZE  8 * 1024
+#define DECODE_THREAD_STACK_SIZE 20 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
+#define IR_THREAD_STACK_SIZE      8 * 1024
+
 typedef int16_t   s16_t;
 typedef int32_t   s32_t;
 typedef int64_t   s64_t;
