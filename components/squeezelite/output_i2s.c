@@ -26,28 +26,24 @@
 #include "time.h"
 
 
-#define DECLARE_ALL_MIN_MAX \
-	DECLARE_MIN_MAX(o); \
-	DECLARE_MIN_MAX(s); \
-	DECLARE_MIN_MAX(loci2sbuf); \
-	DECLARE_MIN_MAX(req); \
-	DECLARE_MIN_MAX(rec); \
-	DECLARE_MIN_MAX(over); \
-	DECLARE_MIN_MAX(i2savailable);\
-	DECLARE_MIN_MAX(i2s_time); \
+#define DECLARE_ALL_MIN_MAX 	\
+	DECLARE_MIN_MAX(o); 		\
+	DECLARE_MIN_MAX(s); 		\
+	DECLARE_MIN_MAX(req); 		\
+	DECLARE_MIN_MAX(rec); 		\
+	DECLARE_MIN_MAX(over); 		\
+	DECLARE_MIN_MAX(i2s_time); 	\
 	DECLARE_MIN_MAX(buffering);
 
-
-#define RESET_ALL_MIN_MAX \
-	RESET_MIN_MAX(o); \
-	RESET_MIN_MAX(s); \
-	RESET_MIN_MAX(loci2sbuf); \
-	RESET_MIN_MAX(req);  \
-	RESET_MIN_MAX(rec);  \
-	RESET_MIN_MAX(over);  \
-	RESET_MIN_MAX(i2savailable);\
-	RESET_MIN_MAX(i2s_time);\
+#define RESET_ALL_MIN_MAX 		\
+	RESET_MIN_MAX(o); 			\
+	RESET_MIN_MAX(s); 			\
+	RESET_MIN_MAX(req);  		\
+	RESET_MIN_MAX(rec);  		\
+	RESET_MIN_MAX(over);  		\
+	RESET_MIN_MAX(i2s_time);	\
 	RESET_MIN_MAX(buffering);
+	
 #define STATS_PERIOD_MS 5000
 
 // Prevent compile errors if dac output is
@@ -65,10 +61,6 @@
 #define CONFIG_I2S_NUM -1
 #endif
 
-#if REPACK && BYTES_PER_FRAMES == 4
-#error "REPACK is not compatible with BYTES_PER_FRAME=4"
-#endif
-
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
@@ -80,15 +72,11 @@ extern struct buffer *outputbuf;
 extern u8_t *silencebuf;
 
 static log_level loglevel;
-static size_t i2s_buffer_size = 0;
-static bool running = true;
-static bool isI2SStarted=false;
-static struct buffer _i2s_buffer_structure;
-static struct buffer *i2sbuffer=&_i2s_buffer_structure;
+static bool running, isI2SStarted;
 static i2s_config_t i2s_config;
 static int bytes_per_frame;
-static thread_type thread;
-static pthread_t stats_thread;
+static thread_type thread, stats_thread;
+static u8_t *obuf;
 
 DECLARE_ALL_MIN_MAX;
 
@@ -127,6 +115,11 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 #endif
 
 	output.write_cb = &_i2s_write_frames;
+	obuf = malloc(FRAME_BLOCK * bytes_per_frame);
+	if (!obuf) {
+		LOG_ERROR("Cannot allocate i2s buffer");
+		return;
+	}
 	
 	running=true;
 
@@ -158,15 +151,6 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	isI2SStarted=false;
 	i2s_stop(CONFIG_I2S_NUM);
 
-	i2s_buffer_size = 5*FRAME_BLOCK*bytes_per_frame;
-	LOG_INFO("Allocating local DAC transfer buffer of %u bytes.",i2s_buffer_size);
-
-	buf_init(i2sbuffer,i2s_buffer_size);
-	if (!i2sbuffer->buf) {
-		LOG_ERROR("unable to malloc i2s buffer");
-		exit(0);
-	}
-	
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
@@ -189,7 +173,7 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
  */
 void output_close_i2s(void) {
 	i2s_driver_uninstall(CONFIG_I2S_NUM);
-	buf_destroy(i2sbuffer);
+	free(obuf);
 }
 
 /****************************************************************************************
@@ -197,40 +181,44 @@ void output_close_i2s(void) {
  */
 static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr) {
-
-	size_t bytes = out_frames * bytes_per_frame;
-	assert(bytes > 0);
+#if BYTES_PER_FRAME == 8									
+	s32_t *optr;
+#endif	
 	
 	if (!silence) {
-		
 		if (output.fade == FADE_ACTIVE && output.fade_dir == FADE_CROSS && *cross_ptr) {
 			_apply_cross(outputbuf, out_frames, cross_gain_in, cross_gain_out, cross_ptr);
 		}
 		
-#if !REPACK
+#if BYTES_PER_FRAME == 4
 		if (gainL != FIXED_ONE || gainR!= FIXED_ONE) {
 			_apply_gain(outputbuf, out_frames, gainL, gainR);
 		}
 			
-		memcpy(i2sbuffer->writep, outputbuf->readp, bytes);
+		memcpy(obuf, outputbuf->readp, out_frames * bytes_per_frame);
 #else
-		obuf = outputbuf->readp;	
+		optr = (s32_t*) outputbuf->readp;	
 #endif		
-
 	} else {
-		
-#if !REPACK
-		memcpy(i2sbuffer->writep, silencebuf,  bytes);
-#endif		
-
+#if BYTES_PER_FRAME == 4		
+		memcpy(obuf, silencebuf, out_frames * bytes_per_frame);
+#else		
+		optr = (s32_t*) silencebuf;
+#endif	
 	}
 
-#if REPACK
-	_scale_and_pack_frames(optr, (s32_t *)(void *)obuf, out_frames, gainL, gainR, output.format);
+#if BYTES_PER_FRAME == 8
+	IF_DSD(
+	if (output.outfmt == DOP) {
+			update_dop((u32_t *) optr, out_frames, output.invert);
+		} else if (output.outfmt != PCM && output.invert)
+			dsd_invert((u32_t *) optr, out_frames);
+	)
+
+	_scale_and_pack_frames(obuf, optr, out_frames, gainL, gainR, output.format);
 #endif	
-	_buf_inc_writep(i2sbuffer, bytes);
-	
-	return bytes / bytes_per_frame;
+
+	return out_frames;
 }
 
 
@@ -238,28 +226,19 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
  * Main output thread
  */
 static void *output_thread_i2s() {
-	frames_t frames=0;
-	frames_t available_frames_space=0;
-	size_t bytes_to_send_i2s=0, // Contiguous buffer which can be addressed
-		 i2s_bytes_written = 0,
-		 i2s_total_bytes_written=0; //actual size that the i2s port was able to write
-	uint32_t timer_start=0;
-	static int count = 0;
-	output_state state;
-
+	frames_t frames = 0;
+	size_t bytes;
+	uint32_t timer_start = 0;
+		
 	while (running) {
-		i2s_bytes_written=0;
-		frames=0;
-		available_frames_space=0;
-		bytes_to_send_i2s=0, // Contiguous buffer which can be addressed
-		i2s_bytes_written = 0; //actual size that the i2s port was able to write
+			
 		TIME_MEASUREMENT_START(timer_start);
+		
 		LOCK;
-		state =output.state;
+		
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
 			LOG_INFO("Output state is off.");
-			LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(i2sbuffer),_buf_cont_read(i2sbuffer));
 			if(isI2SStarted) {
 				isI2SStarted=false;
 				i2s_stop(CONFIG_I2S_NUM);
@@ -267,39 +246,24 @@ static void *output_thread_i2s() {
 			usleep(200000);
 			continue;
 		}
-		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(i2sbuffer),_buf_cont_read(i2sbuffer));
-
+		
 		output.device_frames =0;
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
 
-		do{
-			// fill our buffer
-			available_frames_space = min(_buf_space(i2sbuffer), _buf_cont_write(i2sbuffer)) / bytes_per_frame;
-			if(available_frames_space)
-			{
-				frames = _output_frames( available_frames_space ); // Keep the transfer buffer full
-				SET_MIN_MAX( available_frames_space,req);
-				SET_MIN_MAX(frames,rec);
-			}
-		}while(available_frames_space>0 && frames>0);
-
+		frames = _output_frames( FRAME_BLOCK ); 
+		
+		SET_MIN_MAX(frames,rec);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
-		UNLOCK;
-		LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(i2sbuffer),_buf_cont_read(i2sbuffer));
-
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
-
-		SET_MIN_MAX_SIZED(_buf_used(i2sbuffer),loci2sbuf,i2sbuffer->size);
-		bytes_to_send_i2s = _buf_cont_read(i2sbuffer);
-		SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
-		i2s_total_bytes_written=0;
-
-		while (bytes_to_send_i2s>0 )
-		{
+		
+		UNLOCK;
+		
+		if (frames) {
 			// now send all the data
 			TIME_MEASUREMENT_START(timer_start);
+			
 			if(!isI2SStarted)
 			{
 				isI2SStarted=true;
@@ -311,30 +275,20 @@ static void *output_thread_i2s() {
 				i2s_config.sample_rate = output.current_sample_rate;
 				i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
 			}
-			count++;
-			LOG_SDEBUG("Outputting to I2S");
-			LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(i2sbuffer),_buf_cont_read(i2sbuffer));
-
-			i2s_write(CONFIG_I2S_NUM, i2sbuffer->readp,bytes_to_send_i2s, &i2s_bytes_written, portMAX_DELAY);
-			_buf_inc_readp(i2sbuffer,i2s_bytes_written);
-			if(i2s_bytes_written!=bytes_to_send_i2s)
+	
+			i2s_write(CONFIG_I2S_NUM, obuf, frames * bytes_per_frame, &bytes, portMAX_DELAY);
+			
+			if (bytes != frames * bytes_per_frame)
 			{
-				LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", bytes_to_send_i2s,i2s_bytes_written);
-
+				LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", frames * bytes_per_frame, bytes);
 			}
-			LOG_SDEBUG("DONE Outputting to I2S. Wrote: %d bytes out of %d", i2s_bytes_written,bytes_to_send_i2s);
-			LOG_SDEBUG("Current buffer free: %10d, cont read: %10d",_buf_space(i2sbuffer),_buf_cont_read(i2sbuffer));
-			i2s_total_bytes_written+=i2s_bytes_written;
+			
 			SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
-			if(bytes_to_send_i2s>0) {
-				SET_MIN_MAX(bytes_to_send_i2s-i2s_bytes_written,over);
-			}
-			bytes_to_send_i2s = _buf_cont_read(i2sbuffer);
-			SET_MIN_MAX(bytes_to_send_i2s,i2savailable);
-
-		}
-
+			
+			frames = 0;
+		} 
 	}
+	
 	return 0;
 }
 
@@ -354,9 +308,7 @@ static void *output_thread_i2s_stats() {
 			LOG_INFO( LINE_MIN_MAX_FORMAT_HEAD4);
 			LOG_INFO(LINE_MIN_MAX_FORMAT_STREAM, LINE_MIN_MAX_STREAM("stream",s));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("output",o));
-			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("dac buf used",loci2sbuf));
 			LOG_INFO(LINE_MIN_MAX_FORMAT_FOOTER);
-			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("i2swrite",i2savailable));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("requested",req));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("received",rec));
 			LOG_INFO(LINE_MIN_MAX_FORMAT,LINE_MIN_MAX("overflow",over));
