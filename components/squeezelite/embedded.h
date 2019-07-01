@@ -3,9 +3,16 @@
 
 #include <inttypes.h>
 
-#define HAS_MUTEX_CREATE_P		0
-#define HAS_PTHREAD_SETNAME_NP	1
-
+/* 	must provide 
+		- mutex_create_p
+		- pthread_create_name
+		- stack size
+		- s16_t, s32_t, s64_t and u64_t
+	can overload
+		- exit
+	recommended to add platform specific include(s) here
+*/	
+	
 #ifndef PTHREAD_STACK_MIN
 #define PTHREAD_STACK_MIN	256
 #endif
@@ -23,6 +30,9 @@ typedef unsigned long long u64_t;
 // all exit() calls are made from main thread (or a function called in main thread)
 #define exit(code) { int ret = code; pthread_exit(&ret); }
 
-int pthread_setname_np(pthread_t thread, const char *name);
+#define mutex_create_p(m) mutex_create(m)
+
+int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
+				   void *(*start_routine)( void * ), void *arg, char *name);
 
 #endif // EMBEDDED_H

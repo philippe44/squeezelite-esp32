@@ -315,15 +315,16 @@ typedef int64_t   s64_t;
 
 #define mutex_type pthread_mutex_t
 #define mutex_create(m) pthread_mutex_init(&m, NULL)
-#if HAS_MUTEX_CREATE_P
+#if !EMBEDDED
 #define mutex_create_p(m) pthread_mutexattr_t attr; pthread_mutexattr_init(&attr); pthread_mutexattr_setprotocol(&attr, PTHREAD_PRIO_INHERIT); pthread_mutex_init(&m, &attr); pthread_mutexattr_destroy(&attr)
-#else
-#define mutex_create_p(m) mutex_create(m)
 #endif
 #define mutex_lock(m) pthread_mutex_lock(&m)
 #define mutex_unlock(m) pthread_mutex_unlock(&m)
 #define mutex_destroy(m) pthread_mutex_destroy(&m)
 #define thread_type pthread_t
+#if !EMBEDDED
+#define pthread_create_name(t,a,f,p,n) pthread_create(t,a,f,p)
+#endif
 #endif
 
 #if WIN

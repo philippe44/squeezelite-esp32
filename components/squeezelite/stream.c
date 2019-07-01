@@ -412,11 +412,8 @@ void stream_init(log_level level, unsigned stream_buf_size) {
 #ifdef PTHREAD_STACK_MIN	
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + STREAM_THREAD_STACK_SIZE);
 #endif
-	pthread_create(&thread, &attr, stream_thread, NULL);
+	pthread_create_name(&thread, &attr, stream_thread, NULL, "stream");
 	pthread_attr_destroy(&attr);
-#if HAS_PTHREAD_SETNAME_NP	
-	pthread_setname_np(thread, "stream");
-#endif
 #endif
 #if WIN
 	thread = CreateThread(NULL, STREAM_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&stream_thread, NULL, 0, NULL);

@@ -206,11 +206,8 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 #ifdef PTHREAD_STACK_MIN
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + DECODE_THREAD_STACK_SIZE);
 #endif
-	pthread_create(&thread, &attr, decode_thread, NULL);
+	pthread_create_name(&thread, &attr, decode_thread, NULL, "decode");
 	pthread_attr_destroy(&attr);
-#if HAS_PTHREAD_SETNAME_NP	
-	pthread_setname_np(thread, "decode");
-#endif
 #endif
 #if WIN
 	thread = CreateThread(NULL, DECODE_THREAD_STACK_SIZE, (LPTHREAD_START_ROUTINE)&decode_thread, NULL, 0, NULL);

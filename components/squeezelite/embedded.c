@@ -19,6 +19,7 @@
  *
  */
 #include "squeezelite.h"
+#include "pthread.h"
 #include "esp_pthread.h"
 #include "esp_system.h"
 
@@ -34,11 +35,11 @@ void *audio_calloc(size_t nmemb, size_t size) {
 		return calloc(nmemb, size);
 }
 
-int pthread_setname_np(pthread_t thread, const char *name) { 
+int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
+				   void *(*start_routine)( void * ), void *arg, char *name) {
 	esp_pthread_cfg_t cfg = esp_pthread_get_default_config(); 
-	cfg.thread_name= name; 
+	cfg.thread_name = name; 
 	cfg.inherit_cfg = true; 
-	return esp_pthread_set_cfg(&cfg); 
+	esp_pthread_set_cfg(&cfg); 
+	return pthread_create(thread, attr, start_routine, arg);
 }
-
-

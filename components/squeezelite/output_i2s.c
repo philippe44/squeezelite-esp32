@@ -149,17 +149,11 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
-	pthread_create(&thread, &attr, output_thread_i2s, NULL);
+	pthread_create_name(&thread, &attr, output_thread_i2s, NULL, "output_i2s");
 	pthread_attr_destroy(&attr);
-#if HAS_PTHREAD_SETNAME_NP
-	pthread_setname_np(thread, "output_i2s");
-#endif
 
 	// leave stack size to default 
-	pthread_create(&stats_thread, NULL, output_thread_i2s_stats, NULL);
-#if HAS_PTHREAD_SETNAME_NP
-	pthread_setname_np(stats_thread, "output_i2s_sts");
-#endif
+	pthread_create_name(&stats_thread, NULL, output_thread_i2s_stats, NULL, "output_i2s_sts");
 }
 
 
@@ -286,7 +280,9 @@ static void *output_thread_i2s() {
 			SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
 			
 			frames = 0;
-		} 
+		} else {
+			LOG_WARN("no frame returned %d", output.state);
+		}
 	}
 	
 	return 0;
