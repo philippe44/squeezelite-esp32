@@ -428,7 +428,7 @@ void stream_close(void) {
 	LOCK;
 	running = false;
 	UNLOCK;
-#if LINUX || OSX || FREEBSD || POSIX
+#if LINUX || OSX || FREEBSD || EMBEDDED
 	pthread_join(thread, NULL);
 #endif
 	free(stream.header);

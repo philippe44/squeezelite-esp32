@@ -123,14 +123,20 @@ static uint32_t s_pkt_cnt = 0;
 static TimerHandle_t s_tmr;
 
 static struct {
-    struct arg_str *sink_name;
-    struct arg_int *control_delay;
-    struct arg_int *connect_timeout_delay;
-    struct arg_end *end;
-} squeezelite_args;
+	int control_delay;
+	int connect_timeout_delay;
+	char sink_name[32];
+} squeezelite_conf;	
 
 void hal_bluetooth_init(const char * options)
 {
+	struct {
+		struct arg_str *sink_name;
+		struct arg_int *control_delay;
+		struct arg_int *connect_timeout_delay;
+		struct arg_end *end;
+	} squeezelite_args;
+	
 	ESP_LOGD(TAG,"Initializing Bluetooth HAL");
 
 	squeezelite_args.sink_name = arg_str1("n", "name", "<sink name>", "the name of the bluetooth to connect to");
@@ -162,18 +168,24 @@ void hal_bluetooth_init(const char * options)
 	if(squeezelite_args.sink_name->count == 0)
 	{
 		ESP_LOGD(TAG,"Using default sink name : %s",CONFIG_A2DP_SINK_NAME);
-		squeezelite_args.sink_name->sval[0] = CONFIG_A2DP_SINK_NAME;
+		strncpy(squeezelite_conf.sink_name, CONFIG_A2DP_SINK_NAME, 32);
+	} else {
+		strncpy(squeezelite_conf.sink_name, squeezelite_args.sink_name->sval[0], 32);
 	}
 	if(squeezelite_args.connect_timeout_delay->count == 0)
 	{
 		ESP_LOGD(TAG,"Using default connect timeout");
-		squeezelite_args.connect_timeout_delay->ival[0]=CONFIG_A2DP_CONNECT_TIMEOUT_MS;
+		squeezelite_conf.connect_timeout_delay=CONFIG_A2DP_CONNECT_TIMEOUT_MS;
+	} else {
+		squeezelite_conf.connect_timeout_delay=squeezelite_args.connect_timeout_delay->ival[0];
 	}
 	if(squeezelite_args.control_delay->count == 0)
 	{
 		ESP_LOGD(TAG,"Using default control delay");
-		squeezelite_args.control_delay->ival[0]=CONFIG_A2DP_CONTROL_DELAY_MS;
-	}
+		squeezelite_conf.control_delay=CONFIG_A2DP_CONTROL_DELAY_MS;
+	} else {
+		squeezelite_conf.control_delay=squeezelite_args.control_delay->ival[0];
+	}	
 	ESP_LOGD(TAG,"Freeing options");
 	free(argv);
 	free(opts);
@@ -227,6 +239,20 @@ void hal_bluetooth_init(const char * options)
 	esp_bt_gap_set_pin(pin_type, 0, pin_code);
 
 }
+
+void hal_bluetooth_stop(void) {
+	/* this still does not work, can't figure out how to stop properly this BT stack */
+	bt_app_task_shut_down();
+	ESP_LOGI(TAG, "bt_app_task shutdown successfully");	
+	if (esp_bluedroid_disable() != ESP_OK) return;
+    ESP_LOGI(TAG, "esp_bluedroid_disable called successfully");
+    if (esp_bluedroid_deinit() != ESP_OK) return;
+    ESP_LOGI(TAG, "esp_bluedroid_deinit called successfully");
+    if (esp_bt_controller_disable() != ESP_OK) return;
+    ESP_LOGI(TAG, "esp_bt_controller_disable called successfully");
+    if (esp_bt_controller_deinit() != ESP_OK) return;
+	ESP_LOGI(TAG, "bt stopped successfully");
+}	
 
 static void bt_app_a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param)
 {
@@ -454,7 +480,7 @@ static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param)
         ESP_LOGI(TAG,"--Device name is %s\n",s_peer_bdname);
     }
 
-    if (strcmp((char *)s_peer_bdname, CONFIG_A2DP_SINK_NAME) == 0) {
+    if (strcmp((char *)s_peer_bdname, squeezelite_conf.sink_name) == 0) {
     	ESP_LOGI(TAG,"Found a target device! address %s, name %s", bda_str, s_peer_bdname);
     	ESP_LOGI(TAG,"=======================\n");
         if(esp_bt_gap_cancel_discovery()!=ESP_ERR_INVALID_STATE)
@@ -470,7 +496,7 @@ static void filter_inquiry_scan_result(esp_bt_gap_cb_param_t *param)
     }
     else
     {
-    	ESP_LOGI(TAG,"Not the device we are looking for. Continuing scan.");
+    	ESP_LOGI(TAG,"Not the device we are looking for (%s). Continuing scan", squeezelite_conf.sink_name);
     }
 }
 

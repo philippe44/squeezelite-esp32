@@ -106,10 +106,7 @@ static int launchsqueezelite(int argc, char **argv)
     cfg.thread_name= "squeezelite";
     cfg.inherit_cfg = true;
     esp_pthread_set_cfg(&cfg);
-    pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_create(&thread_squeezelite, &attr, squeezelite_thread,NULL);
-	pthread_attr_destroy(&attr);
+	pthread_create(&thread_squeezelite, NULL, squeezelite_thread,NULL);
 	ESP_LOGD(TAG ,"Back to console thread!");
     return 0;
 }

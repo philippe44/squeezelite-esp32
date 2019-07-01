@@ -167,6 +167,11 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
  * Terminate DAC output
  */
 void output_close_i2s(void) {
+	LOCK;
+	running = false;
+	UNLOCK;
+	pthread_join(thread, NULL);
+	pthread_join(stats_thread, NULL);
 	i2s_driver_uninstall(CONFIG_I2S_NUM);
 	free(obuf);
 }

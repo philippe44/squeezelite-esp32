@@ -20,6 +20,7 @@ typedef int32_t   s32_t;
 typedef int64_t   s64_t;
 typedef unsigned long long u64_t;
 
+// all exit() calls are made from main thread (or a function called in main thread)
 #define exit(code) { int ret = code; pthread_exit(&ret); }
 
 int pthread_setname_np(pthread_t thread, const char *name);

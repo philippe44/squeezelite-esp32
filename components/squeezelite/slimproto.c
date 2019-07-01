@@ -775,6 +775,11 @@ in_addr_t discover_server(char *default_server) {
 	char *buf;
 	struct pollfd pollinfo;
 	unsigned port;
+	int attempts = 0;
+
+#if EMBEDDED
+	attempts = 5;
+#endif	
 
 	int disc_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -811,7 +816,7 @@ in_addr_t discover_server(char *default_server) {
 			server_addr(default_server, &s.sin_addr.s_addr, &port);
 		}
 
-	} while (s.sin_addr.s_addr == 0 && running);
+	} while (s.sin_addr.s_addr == 0 && running && (!attempts || --attempts));
 
 	closesocket(disc_sock);
 
@@ -896,7 +901,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 	new_server = 0;
 
-	while (running) {
+	while (running && slimproto_ip) {
 
 		if (new_server) {
 			previous_server = slimproto_ip;

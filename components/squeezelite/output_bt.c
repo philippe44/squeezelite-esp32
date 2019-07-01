@@ -37,8 +37,10 @@ extern u8_t *silencebuf;
 #define STATS_REPORT_DELAY_MS 15000
 
 extern void hal_bluetooth_init(const char * options);
+extern void hal_bluetooth_stop(void);
 
 static log_level loglevel;
+static bool running = false;
 uint8_t * btout;
 
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
@@ -64,9 +66,17 @@ DECLARE_ALL_MIN_MAX;
 	
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
-	hal_bluetooth_init(device);
+	running = true;
 	output.write_cb = &_write_frames;
+	hal_bluetooth_init(device);
 }
+
+void output_close_bt(void) {
+	LOCK;
+	running = false;
+	UNLOCK;
+	hal_bluetooth_stop();
+}	
 
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 						 s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr) {
@@ -109,7 +119,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 int32_t output_bt_data(uint8_t *data, int32_t len) {
 	int32_t avail_data = 0, wanted_len = 0, start_timer = 0;
 
-	if (len < 0 || data == NULL ) {
+	if (len < 0 || data == NULL || !running) {
 		return 0;
 	}
 	
@@ -145,6 +155,8 @@ int32_t output_bt_data(uint8_t *data, int32_t len) {
 void output_bt_tick(void) {
 	static time_t lastTime=0;
 	
+	if (!running) return;
+		
 	LOCK_S;
     SET_MIN_MAX_SIZED(_buf_used(streambuf), stream_buf, streambuf->size);
     UNLOCK_S;
@@ -172,4 +184,3 @@ void output_bt_tick(void) {
 		RESET_ALL_MIN_MAX;
 	}	
 }	
-

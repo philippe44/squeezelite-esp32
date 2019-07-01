@@ -33,6 +33,7 @@ extern void output_init_bt(log_level level, char *device, unsigned output_buf_si
 extern void output_init_i2s(log_level level, char *device, unsigned output_buf_size, char *params, 
 						  unsigned rates[], unsigned rate_delay, unsigned idle);					
 extern void output_close_i2s(void); 
+extern void output_close_bt(void); 
 
 static log_level loglevel;
 
@@ -46,15 +47,16 @@ void output_init_embedded(log_level level, char *device, unsigned output_buf_siz
 	
 	memset(&output, 0, sizeof(output));
 	output_init_common(level, device, output_buf_size, rates, idle);
-	output.start_frames =  FRAME_BLOCK;
+	output.start_frames = FRAME_BLOCK;
 	output.rate_delay = rate_delay;
 	
 	if (strstr(device, "BT ")) {
 		LOG_INFO("init Bluetooth");
+		close_cb = &output_close_bt;
 		output_init_bt(level, device, output_buf_size, params, rates, rate_delay, idle);
 	} else {
 		LOG_INFO("init I2S");
-		close_cb = output_close_i2s;
+		close_cb = &output_close_i2s;
 		output_init_i2s(level, device, output_buf_size, params, rates, rate_delay, idle);
 	}	
 	
@@ -63,8 +65,8 @@ void output_init_embedded(log_level level, char *device, unsigned output_buf_siz
 
 void output_close_embedded(void) {
 	LOG_INFO("close output");
-	output_close_common();
 	if (close_cb) (*close_cb)();		
+	output_close_common();
 }
 
 void set_volume(unsigned left, unsigned right) { 
