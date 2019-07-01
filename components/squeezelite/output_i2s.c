@@ -280,9 +280,8 @@ static void *output_thread_i2s() {
 			SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
 			
 			frames = 0;
-		} else {
-			LOG_WARN("no frame returned %d", output.state);
-		}
+		} 
+		
 	}
 	
 	return 0;

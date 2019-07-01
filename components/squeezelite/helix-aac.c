@@ -370,8 +370,8 @@ static decode_state helixaac_decode(void) {
 					channels = info.nChans;
 					samplerate = info.sampRateOut;
 					found = 1;
-				} 
-				
+				} else if (n == 0) n++;
+					
 				HAAC(a, FlushCodec, a->hAac);
 			
 				bytes_total -= n;
@@ -412,6 +412,7 @@ static decode_state helixaac_decode(void) {
 
 			// not finished header parsing come back next time
 			UNLOCK_S;
+			LOG_INFO("header not found yet");
 			return DECODE_RUNNING;
 		}
 	}
