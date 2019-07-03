@@ -145,8 +145,9 @@ void process_autoexec(){
 	{
 		ESP_LOGD(TAG,"No matching command found for name autoexec. Adding default entries");
 		uint8_t autoexec_dft=0;
-		char autoexec1_dft[]="join MySSID MyPASSWORD";
-		char autoexec2_dft[]="squeezelite -o \"DAC\" -b 500:2000 -d all=debug -M esp32 -r \"44100,4800\" -N \"playername.txt\"";
+		char autoexec1_dft[64];
+		char autoexec2_dft[]="squeezelite -o \"I2S\" -b 500:2000 -d all=info -M esp32";
+		snprintf(autoexec1_dft, 64, "join %s %s", CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD);
 		store_nvs_value(NVS_TYPE_U8,"autoexec",&autoexec_dft);
 		store_nvs_value(NVS_TYPE_STR,"autoexec1",autoexec1_dft);
 		store_nvs_value(NVS_TYPE_STR,"autoexec2",autoexec2_dft);
