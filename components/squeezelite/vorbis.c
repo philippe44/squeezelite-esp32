@@ -235,7 +235,7 @@ static decode_state vorbis_decode(void) {
 		count = frames * channels;
 
 		iptr = (s16_t *)write_buf + count;
-		optr = (ISAMPLE_T *)write_buf + frames * 2;
+		optr = (ISAMPLE_T *) outputbuf->writep + frames * 2;
 
 		if (channels == 2) {
 #if BYTES_PER_FRAME == 4
