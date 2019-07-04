@@ -9,22 +9,34 @@ Then
 Once the application is running, under monitor, add autoexec to launch squeezelite at boot
 
 1/ setup WiFi
-nvs_set autoexec1 str -v "join <SSID> <password>"
+
+nvs_set autoexec1 str -v "join \<SSID\> \<password\>"
 
 2/ setup squeezelite command line (optional)
+
 nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 3/ enable autoexec
-nv_set autoexec u8 -v 1		
 
-The "join" and "squeezelite" commands can alos be types at the prompt to start manually. Use "help" to see the list.
-The squeezelite options are very similar to the regular squeezelite options. Differences are :
-	- the output is -o [BT <sinkname>] | [I2S]
-	- if you've compiled RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
+nvs_set autoexec u8 -v 1		
+
+The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
+
+The squeezelite options are very similar to the regular Linux ones. Differences are :
+
+	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
+	
+	- if you've compiled with RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
+	
 	- if you've used RESAMPLE16, <options> are (b|l|m)[:i], with b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients
+	
+To add options that require quotes ("), escape them with \". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
 
-# Additional misc notes
-- for all libraries, add -mlongcalls 
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
+
+# Additional misc notes to do you build
+- for all libraries, add -mlongcalls. 
+- audio libraries are complicated to rebuild, open an issue if you really want to
 - libmad, libflac (no esp's version), libvorbis (tremor - not esp's version), alac work
 - libfaad does not really support real time, but if you want to try
 	- -O3 -DFIXED_POINT -DSMALL_STACK
@@ -33,7 +45,7 @@ The squeezelite options are very similar to the regular squeezelite options. Dif
 			#pragma GCC push_options
 			#pragma GCC optimize ("O0")
 			#pragma GCC pop_options
-- better use helixacc			
+- better use helixaac			
 - set IDF_PATH=/home/esp-idf
 - set ESPPORT=COM9
 - update flash partition size
