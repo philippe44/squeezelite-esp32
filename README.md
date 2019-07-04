@@ -10,7 +10,7 @@ Once the application is running, under monitor, add autoexec to launch squeezeli
 
 1/ setup WiFi
 
-nvs_set autoexec1 str -v "join <SSID> <password>"
+nvs_set autoexec1 str -v "join \<SSID\> \<password\>"
 
 2/ setup squeezelite command line (optional)
 
