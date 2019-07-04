@@ -240,8 +240,13 @@
 #endif // !LINKALL
 
 // config options
+#if !EMBEDDED
 #define STREAMBUF_SIZE (2 * 1024 * 1024)
 #define OUTPUTBUF_SIZE (44100 * 8 * 10)
+#else
+#define STREAMBUF_SIZE (480 * 1024)
+#define OUTPUTBUF_SIZE (1450 * 1024)
+#endif
 #define OUTPUTBUF_SIZE_CROSSFADE (OUTPUTBUF_SIZE * 12 / 10)
 
 #define MAX_HEADER 4096 // do not reduce as icy-meta max is 4080

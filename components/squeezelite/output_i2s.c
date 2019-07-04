@@ -264,6 +264,8 @@ static void *output_thread_i2s() {
 				LOG_INFO("Restarting I2S.");
 				i2s_start(CONFIG_I2S_NUM);
 			} 
+			
+			// TODO: synchronize sample rate change when the block is at the DAC, not added to the DMA buffer
 			if (i2s_config.sample_rate != output.current_sample_rate) {
 				LOG_INFO("changing sampling rate %u to %u", i2s_config.sample_rate, output.current_sample_rate);
 				i2s_config.sample_rate = output.current_sample_rate;
