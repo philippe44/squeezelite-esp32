@@ -22,7 +22,7 @@ nvs_set autoexec u8 -v 1
 
 The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
 
-The squeezelite options are very similar to the regular squeezelite options. Differences are :
+The squeezelite options are very similar to the regular Linux ones. Differences are :
 
 	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
 	
