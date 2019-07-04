@@ -26,11 +26,13 @@ The squeezelite options are very similar to the regular squeezelite options. Dif
 
 	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
 	
-	- if you've compiled RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
+	- if you've compiled with RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
 	
 	- if you've used RESAMPLE16, <options> are (b|l|m)[:i], with b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients
 	
-To add options that require quotes ("), escape them with \"
+To add options that require quotes ("), escape them with \". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
+
+nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
 
 # Additional misc notes
 - for all libraries, add -mlongcalls 
