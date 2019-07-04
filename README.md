@@ -24,7 +24,7 @@ The "join" and "squeezelite" commands can also be typed at the prompt to start m
 
 The squeezelite options are very similar to the regular squeezelite options. Differences are :
 
-	- the output is -o \"[BT -n <sinkname>] | [I2S]"\
+	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
 	
 	- if you've compiled RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
 	
