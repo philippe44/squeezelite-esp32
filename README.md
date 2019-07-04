@@ -34,8 +34,9 @@ To add options that require quotes ("), escape them with \". For example, so use
 
 nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
 
-# Additional misc notes
-- for all libraries, add -mlongcalls 
+# Additional misc notes to do you build
+- for all libraries, add -mlongcalls. 
+- audio libraries are complicated to rebuild, open an issue if you really want to
 - libmad, libflac (no esp's version), libvorbis (tremor - not esp's version), alac work
 - libfaad does not really support real time, but if you want to try
 	- -O3 -DFIXED_POINT -DSMALL_STACK
