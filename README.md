@@ -9,12 +9,15 @@ Then
 Once the application is running, under monitor, add autoexec to launch squeezelite at boot
 
 1/ setup WiFi
+
 nvs_set autoexec1 str -v "join <SSID> <password>"
 
 2/ setup squeezelite command line (optional)
+
 nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 3/ enable autoexec
+
 nv_set autoexec u8 -v 1		
 
 The "join" and "squeezelite" commands can alos be types at the prompt to start manually. Use "help" to see the list.
