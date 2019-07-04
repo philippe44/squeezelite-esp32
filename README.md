@@ -20,10 +20,14 @@ nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 nv_set autoexec u8 -v 1		
 
-The "join" and "squeezelite" commands can alos be types at the prompt to start manually. Use "help" to see the list.
+The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
+
 The squeezelite options are very similar to the regular squeezelite options. Differences are :
+
 	- the output is -o [BT <sinkname>] | [I2S]
+	
 	- if you've compiled RESAMPLE option, normal soxr options are available using -R [-u <options>]. Note that anything above LQ or MQ will overload the CPU
+	
 	- if you've used RESAMPLE16, <options> are (b|l|m)[:i], with b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients
 
 # Additional misc notes
