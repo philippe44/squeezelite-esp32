@@ -45,7 +45,7 @@ nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u
 			#pragma GCC push_options
 			#pragma GCC optimize ("O0")
 			#pragma GCC pop_options
-- better use helixacc			
+- better use helixaac			
 - set IDF_PATH=/home/esp-idf
 - set ESPPORT=COM9
 - update flash partition size
