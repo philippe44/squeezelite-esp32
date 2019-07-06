@@ -22,6 +22,7 @@
 #include "pthread.h"
 #include "esp_pthread.h"
 #include "esp_system.h"
+#include "esp_timer.h"
 
 void get_mac(u8_t mac[]) {
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -32,7 +33,7 @@ _sig_func_ptr signal(int sig, _sig_func_ptr func) {
 }
 
 void *audio_calloc(size_t nmemb, size_t size) {
-		return calloc(nmemb, size);
+	return calloc(nmemb, size);
 }
 
 int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
@@ -42,4 +43,8 @@ int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr,
 	cfg.inherit_cfg = true; 
 	esp_pthread_set_cfg(&cfg); 
 	return pthread_create(thread, attr, start_routine, arg);
+}
+
+uint32_t _gettime_ms_(void) {
+	return (uint32_t) (esp_timer_get_time() / 1000);
 }

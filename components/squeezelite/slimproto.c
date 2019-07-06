@@ -114,7 +114,9 @@ void send_packet(u8_t *packet, size_t len) {
 }
 
 static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap, u8_t mac[6]) {
-	#define BASE_CAP "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION
+#ifndef BASE_CAP	
+#define BASE_CAP "Model=squeezelite,AccuratePlayPoints=1,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION
+#endif	
 	#define SSL_CAP "CanHTTPS=1"
 	const char *base_cap;
 	struct HELO_packet pkt;
@@ -167,7 +169,7 @@ static void sendSTAT(const char *event, u32_t server_timestamp) {
 		LOG_SDEBUG("ms_played: 0");
 		ms_played = 0;
 	}
-	
+
 	memset(&pkt, 0, sizeof(struct STAT_packet));
 	memcpy(&pkt.opcode, "STAT", 4);
 	pkt.length = htonl(sizeof(struct STAT_packet) - 8);

@@ -99,6 +99,7 @@ char *next_param(char *src, char c) {
 }
 
 // clock
+#if !defined(gettime_ms)
 u32_t gettime_ms(void) {
 #if WIN
 	return GetTickCount();
@@ -118,6 +119,7 @@ u32_t gettime_ms(void) {
 	return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 #endif
 }
+#endif
 
 // mac address
 #if LINUX && !defined(SUN)
