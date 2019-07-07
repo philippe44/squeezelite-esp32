@@ -242,11 +242,11 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
  * Main output thread
  */
 static void *output_thread_i2s() {
-	frames_t frames = 0;
+	frames_t iframes = FRAME_BLOCK, oframes;
 	size_t bytes;
 	uint32_t timer_start = 0;
-	int discard = DMA_BUF_COUNT * DMA_BUF_LEN;
-	uint32_t jitter = gettime_ms();
+	int discard = 0;
+	uint32_t fullness = gettime_ms();
 		
 	while (running) {
 			
@@ -266,31 +266,26 @@ static void *output_thread_i2s() {
 		}
 		
 		output.updated = gettime_ms();
+		output.frames_played_dmp = output.frames_played;
 		// try to estimate how much we have consumed from the DMA buffer
-		output.frames_played_dmp = output.frames_played - ((output.updated - jitter) * output.current_sample_rate) / 1000;
-		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN;
+		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
 		
-		frames = _output_frames( FRAME_BLOCK ); 
+		oframes = _output_frames( iframes ); 
 		
-		SET_MIN_MAX_SIZED(frames,rec,FRAME_BLOCK);
+		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
 		
-		// must skip first frames as buffer already filled with silence
-		// if (output.state < OUTPUT_RUNNING || output.state == OUTPUT_START_AT) {
+		// must skip first whatever is in the pipe (not when resuming)
 		if (output.state == OUTPUT_START_AT) {
-			discard = DMA_BUF_COUNT * DMA_BUF_LEN;
+			discard = output.frames_played_dmp ? 0 : output.device_frames;
 		} else if (discard) {
-			discard -= output.frames_played + frames;
-			if (discard < 0) {
-				frames += discard;
-				discard = 0;
-			} else {
-				UNLOCK;
-				continue;
-			}
-		}	
+			discard -= oframes;
+			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
+			UNLOCK;
+			continue;
+		}
 		
 		UNLOCK;
 		
@@ -313,16 +308,14 @@ static void *output_thread_i2s() {
 		}
 		
 		// we assume that here we have been able to entirely fill the DMA buffers
-		i2s_write(CONFIG_I2S_NUM, obuf, frames * bytes_per_frame, &bytes, portMAX_DELAY);
-		jitter = gettime_ms();
+		i2s_write(CONFIG_I2S_NUM, obuf, oframes * bytes_per_frame, &bytes, portMAX_DELAY);
+		fullness = gettime_ms();
 			
-		if (bytes != frames * bytes_per_frame) {
-			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", frames * bytes_per_frame, bytes);
+		if (bytes != oframes * bytes_per_frame) {
+			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", oframes * bytes_per_frame, bytes);
 		}
 			
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
-			
-		frames = 0;
 		
 	}
 	
