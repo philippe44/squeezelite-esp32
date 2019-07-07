@@ -20,50 +20,24 @@
  */
  
 /* 
-Synchronisation is almost broken with i2s. The esp32 driver is not clear
-about what it does when it starts, not when sampling rate changes (which
-does stop/start). For example, if no frame is provided using i2_write, it
-cycle on the last buffer or something like that.
+Synchronisation is a bit of a hack with i2s. The esp32 driver is always
+full when it starts, so there is a delay of the total length of buffers.
+In other words, i2w_write blocks at first call, until at least one buffer
+has been written (it uses a queue with produce / consume).
 
-But above that, when squeezelite wants to get current time (output.updated)
-and number of frames sent at that time (outout.frames_played_dmp), this 
-should be corrected by the number of frames in the pipepline of I2S 
-(output.device_frames) but that value is unknown so all we can do is assuming
-that every time we assess these values, the I2S DMA is full so that at least
-we have a consitent matching between time & frames. This is not a solid 
-hypothesis. 
+The first hack is to consume that length at the beginning of tracks when
+synchronization is active. It's about ~180ms @ 44.1kHz
 
-It seems that to maximize that probability, the amount of frames written 
-using i2s_write must be a divider of dma_buf_len otherwise when i2s_write 
-returns, the fullness of the DMA buffer varies and as a result there is a 
-big jitter in the time/frame matching and LMS then constantly adjust player's
-timing. A solution is to not use AccuratePlayPloint to force LMS to average
-these values (reported in STMt) but then if there is a gap at the beginning, 
-it lasts for a while
+The second hack is that we never know exactly the number of frames in the 
+DMA buffers when we update the output.frames_played_dmp. We assume that
+after i2s_write, these buffers are always full so by measuring the gap
+between time after i2s_write and update of frames_played_dmp, we have a
+good idea of the error. 
 
-Even more complicated, I2S introduces a systematic delay of silence, counted
-in frames and equal to the size of the sum of DMA buffers. When LMS requests to
-"startAt", in reality, we start at the required time + the delay corresponding
-to this number of frames, which in ms changes with the sampling rate!
-
-Compensating that delay in LMS's UI works for a given sampling rate, but is
-different for every sampplin rate so this does not work either. For example,
-with 16 buffers of 512 bytes @ 44100, the delay is 16*512/44100 = 185 ms.
-
-Trying to compensate that delay inside squeezelite does not work well either
-because LMS sends a "startAt" which is only 150~200ms after present time and
-that might be less than the duration of the whole DMA buffer, so we can't 
-anticpate what is already past
-
-Another issue is that when pause is requested, the part of the track which is 
-in the DMA buffers will be played no matter what. We can't use i2s_stop and
-i2s_start as i2s_start seems to mess-up with buffer (in a not very clean or
-clear way). So the track will audibly stop a bit after pause is pressed, but 
-more problem comes with the un-pause because LMS is not told that these frames
-have been played and in addition the "startAt" will have the same issue as the
-initial "startAt"
-
-So this is a lot of fun and I've not yet found a good solution
+The third hack is when sample rate changes, buffers are reset and we also
+do the change too early, but can't do that exaclty at the right time. So 
+there might be a pop and a de-sync when sampling rate change happens. Not
+sure that using rate_delay would fix that
 */
 
 #include "squeezelite.h"
@@ -75,8 +49,7 @@ So this is a lot of fun and I've not yet found a good solution
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
-//#define FRAME_BLOCK MAX_SILENCE_FRAMES
-#define FRAME_BLOCK 512
+#define FRAME_BLOCK MAX_SILENCE_FRAMES
 
 // Prevent compile errors if dac output is
 // included in the build and not actually activated in menuconfig
@@ -93,6 +66,8 @@ So this is a lot of fun and I've not yet found a good solution
 #define CONFIG_I2S_NUM -1
 #endif
 
+// must have an integer ratio with FRAME_BLOCK
+#define DMA_BUF_LEN		512	
 #define DMA_BUF_COUNT	16
 
 #define DECLARE_ALL_MIN_MAX 	\
@@ -168,28 +143,29 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	
 	running=true;
 
-	i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;                    // Only TX
+	i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
 	i2s_config.sample_rate = output.current_sample_rate;
 	i2s_config.bits_per_sample = bytes_per_frame * 8 / 2;
-	i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;           //2-channels
+	i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
 	i2s_config.communication_format = I2S_COMM_FORMAT_I2S| I2S_COMM_FORMAT_I2S_MSB;
+	// in case of overflow, do not replay old buffer
+	i2s_config.tx_desc_auto_clear = true;		
 	i2s_config.dma_buf_count = DMA_BUF_COUNT;
 	// Counted in frames (but i2s allocates a buffer <= 4092 bytes)
-	i2s_config.dma_buf_len = FRAME_BLOCK;
+	i2s_config.dma_buf_len = DMA_BUF_LEN;
 	i2s_config.use_apll = true;
 	i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1; //Interrupt level 1
 
 	i2s_pin_config_t pin_config = { .bck_io_num = CONFIG_I2S_BCK_IO, .ws_io_num =
 			CONFIG_I2S_WS_IO, .data_out_num = CONFIG_I2S_DO_IO, .data_in_num = -1 //Not used
 			};
-	LOG_INFO("Initializing I2S with rate: %d, bits per sample: %d, buffer len: %d, number of buffers: %d ",
+	LOG_INFO("Initializing I2S with rate: %d, bits per sample: %d, buffer frames: %d, number of buffers: %d ",
 			i2s_config.sample_rate, i2s_config.bits_per_sample, i2s_config.dma_buf_len, i2s_config.dma_buf_count);
 
 	i2s_driver_install(CONFIG_I2S_NUM, &i2s_config, 0, NULL);
 	i2s_set_pin(CONFIG_I2S_NUM, &pin_config);
-	i2s_set_clk(CONFIG_I2S_NUM, output.current_sample_rate, i2s_config.bits_per_sample, 2);
-	i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 	i2s_stop(CONFIG_I2S_NUM);
+	i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 	isI2SStarted=false;
 	
 	pthread_attr_t attr;
@@ -269,6 +245,8 @@ static void *output_thread_i2s() {
 	frames_t frames = 0;
 	size_t bytes;
 	uint32_t timer_start = 0;
+	int discard = DMA_BUF_COUNT * DMA_BUF_LEN;
+	uint32_t jitter = gettime_ms();
 		
 	while (running) {
 			
@@ -276,7 +254,6 @@ static void *output_thread_i2s() {
 		
 		LOCK;
 		
-/*		
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
 			LOG_INFO("Output state is off.");
@@ -287,13 +264,12 @@ static void *output_thread_i2s() {
 			usleep(200000);
 			continue;
 		}
-*/		
 		
-		//output.device_frames = DMA_BUF_COUNT * i2s_config.dma_buf_len;
-		output.device_frames = 0;
 		output.updated = gettime_ms();
-		output.frames_played_dmp = output.frames_played;
-
+		// try to estimate how much we have consumed from the DMA buffer
+		output.frames_played_dmp = output.frames_played - ((output.updated - jitter) * output.current_sample_rate) / 1000;
+		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN;
+		
 		frames = _output_frames( FRAME_BLOCK ); 
 		
 		SET_MIN_MAX_SIZED(frames,rec,FRAME_BLOCK);
@@ -301,30 +277,44 @@ static void *output_thread_i2s() {
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
 		
+		// must skip first frames as buffer already filled with silence
+		// if (output.state < OUTPUT_RUNNING || output.state == OUTPUT_START_AT) {
+		if (output.state == OUTPUT_START_AT) {
+			discard = DMA_BUF_COUNT * DMA_BUF_LEN;
+		} else if (discard) {
+			discard -= output.frames_played + frames;
+			if (discard < 0) {
+				frames += discard;
+				discard = 0;
+			} else {
+				UNLOCK;
+				continue;
+			}
+		}	
+		
 		UNLOCK;
 		
-		// must skip first frames as buffer filled with silence
-		//if (output.state > OUTPUT_STOPPED && output.frames_played + frames < DMA_BUF_COUNT * i2s_config.dma_buf_len) continue;
-				
 		// now send all the data
 		TIME_MEASUREMENT_START(timer_start);
 		
 		if (!isI2SStarted ) {
 			isI2SStarted = true;
 			LOG_INFO("Restarting I2S.");
-			// start with a buffer full of silence
 			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 			i2s_start(CONFIG_I2S_NUM);
 		} 
 		
-		// TODO: this does not work well as set_sample_rates resets the fifos - it breaks synchronization
+		// this does not work well as set_sample_rates resets the fifos (and it's too early)
 		if (i2s_config.sample_rate != output.current_sample_rate) {
 			LOG_INFO("changing sampling rate %u to %u", i2s_config.sample_rate, output.current_sample_rate);
 			i2s_config.sample_rate = output.current_sample_rate;
 			i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
+			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 		}
 		
+		// we assume that here we have been able to entirely fill the DMA buffers
 		i2s_write(CONFIG_I2S_NUM, obuf, frames * bytes_per_frame, &bytes, portMAX_DELAY);
+		jitter = gettime_ms();
 			
 		if (bytes != frames * bytes_per_frame) {
 			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", frames * bytes_per_frame, bytes);
