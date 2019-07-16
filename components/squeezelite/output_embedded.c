@@ -30,14 +30,16 @@ extern struct buffer *outputbuf;
 
 extern void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, 
 						  unsigned rates[], unsigned rate_delay, unsigned idle);
+extern void output_close_bt(void); 
+
 extern void output_init_i2s(log_level level, char *device, unsigned output_buf_size, char *params, 
 						  unsigned rates[], unsigned rate_delay, unsigned idle);					
+extern bool output_volume_i2s(unsigned left, unsigned right); 
 extern void output_close_i2s(void); 
-extern void output_close_bt(void); 
 
 static log_level loglevel;
 
-static void (*volume_cb)(unsigned left, unsigned right);
+static bool (*volume_cb)(unsigned left, unsigned right);
 static void (*close_cb)(void);
 
 void output_init_embedded(log_level level, char *device, unsigned output_buf_size, char *params, 
@@ -57,6 +59,7 @@ void output_init_embedded(log_level level, char *device, unsigned output_buf_siz
 	} else {
 		LOG_INFO("init I2S");
 		close_cb = &output_close_i2s;
+		volume_cb = &output_volume_i2s;
 		output_init_i2s(level, device, output_buf_size, params, rates, rate_delay, idle);
 	}	
 	
@@ -71,12 +74,12 @@ void output_close_embedded(void) {
 
 void set_volume(unsigned left, unsigned right) { 
 	LOG_DEBUG("setting internal gain left: %u right: %u", left, right);
-	if (!volume_cb) {
+	if (!volume_cb || !(*volume_cb)(left, right)) {
 		LOCK;
 		output.gainL = left;
 		output.gainR = right;
 		UNLOCK;
-	} else (*volume_cb)(left, right); 	
+	} 
 }
 
 bool test_open(const char *device, unsigned rates[], bool userdef_rates) {

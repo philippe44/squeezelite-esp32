@@ -42,9 +42,12 @@ sure that using rate_delay would fix that
 
 #include "squeezelite.h"
 #include "driver/i2s.h"
+#include "driver/i2c.h"
 #include "perf_trace.h"
 #include <signal.h>
 #include "time.h"
+
+#define TAS575x
 
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
@@ -65,6 +68,8 @@ sure that using rate_delay would fix that
 #ifndef CONFIG_I2S_NUM
 #define CONFIG_I2S_NUM -1
 #endif
+
+typedef enum { DAC_ON = 0, DAC_OFF, DAC_POWERDOWN, DAC_VOLUME } dac_cmd_e;
 
 // must have an integer ratio with FRAME_BLOCK
 #define DMA_BUF_LEN		512	
@@ -104,12 +109,78 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
 static void *output_thread_i2s();
 static void *output_thread_i2s_stats();
+static void dac_cmd(dac_cmd_e cmd, ...);
+
+#ifdef TAS575x
+
+#define I2C_PORT	0
+#define I2C_ADDR	0x4c
+#define VOLUME_GPIO	33
+
+struct tas575x_cmd_s {
+	u8_t reg;
+	u8_t value;
+};
+	
+static const struct tas575x_cmd_s tas575x_init_sequence[] = {
+    { 0x00, 0x00 },		// select page 0
+    { 0x02, 0x10 },		// standby
+    { 0x0d, 0x10 },		// use SCK for PLL
+    { 0x25, 0x08 },		// ignore SCK halt 
+	{ 0x02, 0x00 },		// restart
+	{ 0xff, 0xff }		// end of table
+};
+
+static const i2c_config_t i2c_config = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = 19,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_io_num = 18,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 100000,
+};
+
+static const struct tas575x_cmd_s tas575x_cmd[] = {
+	{ 0x02, 0x00 },	// DAC_ON
+	{ 0x02, 0x10 },	// DAC_OFF
+	{ 0x02, 0x01 },	// DAC_POWERDOWN
+};
+#endif
 
 /****************************************************************************************
  * Initialize the DAC output
  */
 void output_init_i2s(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
+	
+#ifdef TAS575x	
+	// init volume & mute
+	gpio_pad_select_gpio(VOLUME_GPIO);
+	gpio_set_direction(VOLUME_GPIO, GPIO_MODE_OUTPUT);
+	gpio_set_level(VOLUME_GPIO, 0);
+	
+	// configure i2c
+	i2c_param_config(I2C_PORT, &i2c_config);
+	i2c_driver_install(I2C_PORT, I2C_MODE_MASTER, false, false, false);
+	i2c_cmd_handle_t i2c_cmd = i2c_cmd_link_create();
+	
+	for (int i = 0; tas575x_init_sequence[i].reg != 0xff; i++) {
+		i2c_master_start(i2c_cmd);
+		i2c_master_write_byte(i2c_cmd, I2C_ADDR << 1 | I2C_MASTER_WRITE, I2C_MASTER_NACK);
+		i2c_master_write_byte(i2c_cmd, tas575x_init_sequence[i].reg, I2C_MASTER_NACK);
+		i2c_master_write_byte(i2c_cmd, tas575x_init_sequence[i].value, I2C_MASTER_NACK);
+
+		LOG_DEBUG("i2c write %x at %u", tas575x_init_sequence[i].reg, tas575x_init_sequence[i].value);
+	}
+
+	i2c_master_stop(i2c_cmd);	
+	esp_err_t ret = i2c_master_cmd_begin(I2C_PORT, i2c_cmd, 500 / portTICK_RATE_MS);
+    i2c_cmd_link_delete(i2c_cmd);
+	
+	if (ret != ESP_OK) {
+		LOG_ERROR("could not intialize TAS575x %d", ret);
+	}
+#endif	
 	
 #ifdef CONFIG_I2S_BITS_PER_CHANNEL
 	switch (CONFIG_I2S_BITS_PER_CHANNEL) {
@@ -188,9 +259,25 @@ void output_close_i2s(void) {
 	UNLOCK;
 	pthread_join(thread, NULL);
 	pthread_join(stats_thread, NULL);
+	
 	i2s_driver_uninstall(CONFIG_I2S_NUM);
 	free(obuf);
+	
+#ifdef TAS575x	
+	i2c_driver_delete(I2C_PORT);
+#endif	
 }
+
+/****************************************************************************************
+ * change volume
+ */
+bool output_volume_i2s(unsigned left, unsigned right) {
+#ifdef TAS575x	
+	gpio_set_level(VOLUME_GPIO, left || right);
+#endif	
+ return false;	
+} 
+	
 
 /****************************************************************************************
  * Write frames to the output buffer
@@ -247,6 +334,7 @@ static void *output_thread_i2s() {
 	uint32_t timer_start = 0;
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
+	bool synced;
 		
 	while (running) {
 			
@@ -258,18 +346,21 @@ static void *output_thread_i2s() {
 			UNLOCK;
 			LOG_INFO("Output state is off.");
 			if (isI2SStarted) {
-				isI2SStarted=false;
+				isI2SStarted = false;
 				i2s_stop(CONFIG_I2S_NUM);
+				dac_cmd(DAC_OFF);
 			}
 			usleep(200000);
 			continue;
+		} else if (output.state == OUTPUT_STOPPED) {
+			synced = false;
 		}
 		
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
 		// try to estimate how much we have consumed from the DMA buffer
 		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
-		
+				
 		oframes = _output_frames( iframes ); 
 		
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
@@ -277,9 +368,12 @@ static void *output_thread_i2s() {
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),buffering);
 		
-		// must skip first whatever is in the pipe (not when resuming)
+		/* must skip first whatever is in the pipe (but not when resuming). 
+		This test is incorrect when we pause a track that has just started, 
+		but this is higly unlikely and I don't have a better one for now */
 		if (output.state == OUTPUT_START_AT) {
 			discard = output.frames_played_dmp ? 0 : output.device_frames;
+			synced = true;
 		} else if (discard) {
 			discard -= oframes;
 			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
@@ -297,14 +391,23 @@ static void *output_thread_i2s() {
 			LOG_INFO("Restarting I2S.");
 			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 			i2s_start(CONFIG_I2S_NUM);
+			dac_cmd(DAC_ON);			
 		} 
 		
 		// this does not work well as set_sample_rates resets the fifos (and it's too early)
 		if (i2s_config.sample_rate != output.current_sample_rate) {
 			LOG_INFO("changing sampling rate %u to %u", i2s_config.sample_rate, output.current_sample_rate);
+			/* 
+			if (synced)
+				//  can sleep for a buffer_queue - 1 and then eat a buffer (discard) if we are synced
+				usleep(((DMA_BUF_COUNT - 1) * DMA_BUF_LEN * bytes_per_frame * 1000) / 44100 * 1000);
+				discard = DMA_BUF_COUNT * DMA_BUF_LEN * bytes_per_frame;
+			}	
+			*/
 			i2s_config.sample_rate = output.current_sample_rate;
 			i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
 			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
+			//return;
 		}
 		
 		// we assume that here we have been able to entirely fill the DMA buffers
@@ -353,6 +456,39 @@ static void *output_thread_i2s_stats() {
 		usleep(STATS_PERIOD_MS *1000);
 	}
 	return NULL;
+}
+
+/****************************************************************************************
+ * DAC specific commands
+ */
+void dac_cmd(dac_cmd_e cmd, ...) {
+	va_list args;
+	esp_err_t ret = ESP_OK;
+	
+	va_start(args, cmd);
+#ifdef TAS575x	
+	i2c_cmd_handle_t i2c_cmd = i2c_cmd_link_create();
+
+	switch(cmd) {
+	case DAC_VOLUME:
+		LOG_ERROR("volume not handled yet");
+		break;
+	default:
+		i2c_master_start(i2c_cmd);
+		i2c_master_write_byte(i2c_cmd, I2C_ADDR << 1 | I2C_MASTER_WRITE, I2C_MASTER_NACK);
+		i2c_master_write_byte(i2c_cmd, tas575x_cmd[cmd].reg, I2C_MASTER_NACK);
+		i2c_master_write_byte(i2c_cmd, tas575x_cmd[cmd].value, I2C_MASTER_NACK);
+		i2c_master_stop(i2c_cmd);	
+		ret	= i2c_master_cmd_begin(I2C_PORT, i2c_cmd, 50 / portTICK_RATE_MS);
+	}
+	
+    i2c_cmd_link_delete(i2c_cmd);
+	
+	if (ret != ESP_OK) {
+		LOG_ERROR("could not intialize TAS575x %d", ret);
+	}
+#endif	
+	va_end(args);
 }
 
 
