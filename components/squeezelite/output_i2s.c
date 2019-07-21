@@ -47,8 +47,6 @@ sure that using rate_delay would fix that
 #include <signal.h>
 #include "time.h"
 
-#define TAS575x
-
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
 
