@@ -221,9 +221,6 @@ static void usage(const char *argv0) {
 #if LINKALL
 		   " LINKALL"
 #endif
-#if STATUSHACK
-		   " STATUSHACK"
-#endif
 		   "\n\n",
 		   argv0);
 }
