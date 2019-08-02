@@ -387,7 +387,7 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 			output.supported_rates[i] = rates[i];
 		}
 	}
-	else
+	else {
 #else  
 	{
 #endif

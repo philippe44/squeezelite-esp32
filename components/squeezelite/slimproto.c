@@ -122,7 +122,7 @@ static void sendHELO(bool reconnect, const char *fixed_cap, const char *var_cap,
 	struct HELO_packet pkt;
 	
 #if USE_SSL
-#if !LINKALL
+#if !LINKALL && !NO_SSLSYM
 	if (ssl_loaded) base_cap = SSL_CAP "," BASE_CAP;
 	else base_cap = BASE_CAP;
 #endif	
@@ -769,11 +769,6 @@ in_addr_t discover_server(char *default_server) {
 	char *buf;
 	struct pollfd pollinfo;
 	unsigned port;
-	int attempts = 0;
-
-#if EMBEDDED
-	attempts = 5;
-#endif	
 
 	int disc_sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -810,7 +805,7 @@ in_addr_t discover_server(char *default_server) {
 			server_addr(default_server, &s.sin_addr.s_addr, &port);
 		}
 
-	} while (s.sin_addr.s_addr == 0 && running && (!attempts || --attempts));
+	} while (s.sin_addr.s_addr == 0 && running);
 
 	closesocket(disc_sock);
 
@@ -895,7 +890,7 @@ void slimproto(log_level level, char *server, u8_t mac[6], const char *name, con
 
 	new_server = 0;
 
-	while (running && slimproto_ip) {
+	while (running) {
 
 		if (new_server) {
 			previous_server = slimproto_ip;

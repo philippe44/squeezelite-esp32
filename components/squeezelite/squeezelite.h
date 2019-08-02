@@ -180,6 +180,12 @@
 #define USE_SSL 0
 #endif
 
+#if defined (NO_SSLSYM)
+#undef NO_SSLSYM
+#define NO_SSLSYM 1
+#else
+#define NO_SSLSYM 0
+#endif
 
 #if !LINKALL
 
@@ -190,6 +196,7 @@
 #define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
 #define LIBVORBIS "libvorbisfile.so.3"
+#define LIBOPUS "libopusfile.so.0"
 #define LIBTREMOR "libvorbisidec.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
@@ -205,6 +212,7 @@
 #define LIBMPG "libmpg123.0.dylib"
 #define LIBVORBIS "libvorbisfile.3.dylib"
 #define LIBTREMOR "libvorbisidec.1.dylib"
+#define LIBOPUS "libopusfile.0.dylib"
 #define LIBFAAD "libfaad.2.dylib"
 #define LIBAVUTIL   "libavutil.%d.dylib"
 #define LIBAVCODEC  "libavcodec.%d.dylib"
@@ -217,6 +225,7 @@
 #define LIBMAD  "libmad-0.dll"
 #define LIBMPG "libmpg123-0.dll"
 #define LIBVORBIS "libvorbisfile.dll"
+#define LIBOPUS "libopusfile-0.dll"
 #define LIBTREMOR "libvorbisidec.dll"
 #define LIBFAAD "libfaad2.dll"
 #define LIBAVUTIL   "avutil-%d.dll"
@@ -226,15 +235,17 @@
 #endif
 
 #if FREEBSD
-#define LIBFLAC "libFLAC.so.11"
-#define LIBMAD  "libmad.so.2"
+#define LIBFLAC "libFLAC.so.8"
+#define LIBMAD  "libmad.so.0"
 #define LIBMPG "libmpg123.so.0"
-#define LIBVORBIS "libvorbisfile.so.6"
+#define LIBVORBIS "libvorbisfile.so.3"
 #define LIBTREMOR "libvorbisidec.so.1"
+#define LIBOPUS "libopusfile.so.1"
 #define LIBFAAD "libfaad.so.2"
 #define LIBAVUTIL   "libavutil.so.%d"
 #define LIBAVCODEC  "libavcodec.so.%d"
 #define LIBAVFORMAT "libavformat.so.%d"
+#define LIBSOXR "libsoxr.so.0"
 #endif
 
 #endif // !LINKALL
@@ -773,6 +784,7 @@ struct codec *register_helixaac(void);
 struct codec *register_dsd(void);
 struct codec *register_alac(void);
 struct codec *register_ff(const char *codec);
+struct codec *register_opus(void);
 
 //gpio.c
 #if GPIO
@@ -799,7 +811,7 @@ void ir_close(void);
 #endif
 
 // sslsym.c
-#if USE_SSL && !LINKALL
+#if USE_SSL && !LINKALL && !NO_SSLSYM
 bool load_ssl_symbols(void);
 void free_ssl_symbols(void);
 bool ssl_loaded;

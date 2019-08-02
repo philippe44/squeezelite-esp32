@@ -113,6 +113,11 @@ menu "Squeezelite-ESP32"
         default 1
         help
             Include alac library for alac decoding.			
+	config INCLUDE_OPUS
+        bool "OPUS"
+        default 1
+        help
+            Include opus library for opus decoding.						
 	   
     endmenu
 	menu "Audio Output"

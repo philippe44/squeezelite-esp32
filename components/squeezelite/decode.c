@@ -180,6 +180,9 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 
 	if (!strstr(exclude_codecs, "ogg")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ogg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_vorbis());
+	
+	if (!strstr(exclude_codecs, "ops")	&& (!include_codecs || (order_codecs = strstr(include_codecs, "ops"))))
+		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_opus());
 
 	if (!strstr(exclude_codecs, "flac") && (!include_codecs || (order_codecs = strstr(include_codecs, "flac"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_flac());

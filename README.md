@@ -45,6 +45,9 @@ nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u
 			#pragma GCC push_options
 			#pragma GCC optimize ("O0")
 			#pragma GCC pop_options
+- opus & opusfile 
+	- per mad & few others, edit configure and change $ac_link to add -c (faking link)
+	- change ac_files to remove ''
 - better use helixaac			
 - set IDF_PATH=/home/esp-idf
 - set ESPPORT=COM9
