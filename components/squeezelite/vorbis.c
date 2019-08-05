@@ -266,9 +266,14 @@ static decode_state vorbis_decode(void) {
 
 	} else if (n == 0) {
 
-		LOG_INFO("end of stream");
-		UNLOCK_O_direct;
-		return DECODE_COMPLETE;
+		if (stream.state <= DISCONNECT) {
+			LOG_INFO("partial decode");
+			UNLOCK_O_direct;
+			UNLOCK_S;
+			return DECODE_COMPLETE;
+		} else {
+			LOG_INFO("no frame decoded");
+        }
 
 	} else if (n == OV_HOLE) {
 
