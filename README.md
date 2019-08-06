@@ -46,8 +46,10 @@ nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u
 			#pragma GCC optimize ("O0")
 			#pragma GCC pop_options
 - opus & opusfile 
+	- for opus, the ESP-provided library seems to work, but opusfile is still needed
 	- per mad & few others, edit configure and change $ac_link to add -c (faking link)
 	- change ac_files to remove ''
+	- add DEPS_CFLAGS and DEPS_LIBS to avoid pkg-config to be required
 - better use helixaac			
 - set IDF_PATH=/home/esp-idf
 - set ESPPORT=COM9

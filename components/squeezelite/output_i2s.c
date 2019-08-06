@@ -43,9 +43,11 @@ sure that using rate_delay would fix that
 #include "squeezelite.h"
 #include "driver/i2s.h"
 #include "driver/i2c.h"
+#include "driver/gpio.h"
 #include "perf_trace.h"
 #include <signal.h>
 #include "time.h"
+#include "led.h"
 
 #define LOCK   mutex_lock(outputbuf->mutex)
 #define UNLOCK mutex_unlock(outputbuf->mutex)
@@ -109,7 +111,18 @@ static void *output_thread_i2s();
 static void *output_thread_i2s_stats();
 static void dac_cmd(dac_cmd_e cmd, ...);
 
-#ifdef TAS575x
+#ifdef CONFIG_SQUEEZEAMP
+
+#define TAS575x
+
+#undef	CONFIG_I2S_BCK_IO 
+#define CONFIG_I2S_BCK_IO 	33
+#undef 	CONFIG_I2S_WS_IO	
+#define CONFIG_I2S_WS_IO	25
+#undef 	CONFIG_I2S_DO_IO
+#define CONFIG_I2S_DO_IO	32
+#undef 	CONFIG_I2S_NUM
+#define CONFIG_I2S_NUM		0
 
 #define I2C_PORT	0
 #define I2C_ADDR	0x4c
@@ -151,7 +164,13 @@ static const struct tas575x_cmd_s tas575x_cmd[] = {
 void output_init_i2s(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
 	loglevel = level;
 	
-#ifdef TAS575x	
+#ifdef TAS575x
+	gpio_pad_select_gpio(39);
+	gpio_set_direction(39, GPIO_MODE_INPUT);
+	
+	adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ADC1_CHANNEL_0,ADC_ATTEN_DB_0);
+    			
 	// init volume & mute
 	gpio_pad_select_gpio(VOLUME_GPIO);
 	gpio_set_direction(VOLUME_GPIO, GPIO_MODE_OUTPUT);
@@ -333,12 +352,25 @@ static void *output_thread_i2s() {
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
 	bool synced;
+#ifdef TAS575x					
+	output_state state = OUTPUT_OFF;
+#endif	
 		
 	while (running) {
 			
 		TIME_MEASUREMENT_START(timer_start);
 		
 		LOCK;
+		
+#ifdef TAS575x						
+		// manage led display
+		if (state != output.state) {
+			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
+			else if (output.state == OUTPUT_STOPPED) led_blink_wait(LED_GREEN, 200, 1000);
+			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
+		}
+		state = output.state;
+#endif				
 		
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
@@ -348,6 +380,7 @@ static void *output_thread_i2s() {
 				i2s_stop(CONFIG_I2S_NUM);
 				dac_cmd(DAC_OFF);
 			}
+			LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(39), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
 			usleep(200000);
 			continue;
 		} else if (output.state == OUTPUT_STOPPED) {
@@ -389,7 +422,7 @@ static void *output_thread_i2s() {
 			LOG_INFO("Restarting I2S.");
 			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 			i2s_start(CONFIG_I2S_NUM);
-			dac_cmd(DAC_ON);			
+			dac_cmd(DAC_ON);	
 		} 
 		
 		// this does not work well as set_sample_rates resets the fifos (and it's too early)

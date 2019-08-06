@@ -18,21 +18,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include "platform_esp32.h"
-#include "led.h"
+ 
+#ifndef LED_H
 
-#ifdef CONFIG_SQUEEZEAMP
-#define LED_GREEN_GPIO 	12
-#define LED_RED_GPIO	13
-#else
-#define LED_GREEN_GPIO 	0
-#define LED_RED_GPIO	0
+#include "driver/gpio.h"
+
+enum { LED_GREEN = 0, LED_RED };
+
+#define led_on(idx)						led_blink_core(idx, 1, 0, false)
+#define led_off(idx)					led_blink_core(idx, 0, 0, false)
+#define led_blink(idx, on, off)			led_blink_core(idx, on, off, false)
+#define led_blink_wait(idx, on, off)	led_blink_core(idx, on, off, true)
+
+bool led_blink_core(int idx, int ontime, int offtime, bool wait);
+bool led_release(int idx);
+bool led_config(int idx, gpio_num_t gpio, int onstate);
+
 #endif
-
-void app_main()
-{
-	led_config(LED_GREEN, LED_GREEN_GPIO, 0);
-	led_config(LED_RED, LED_RED_GPIO, 0);
-	
-	console_start();
-}
