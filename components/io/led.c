@@ -26,7 +26,8 @@ static struct led_s {
 	bool on;
 	int onstate;
 	int ontime, offtime;
-	int waiton, waitoff;
+	int pushedon, pushedoff;
+	bool pushed;
 	TimerHandle_t timer;
 } leds[MAX_LED];
 
@@ -45,19 +46,25 @@ static void vCallbackFunction( TimerHandle_t xTimer ) {
 	xTimerChangePeriod(xTimer, (led->on ? led->ontime : led->offtime) / portTICK_RATE_MS, BLOCKTIME);
 }
 
-bool led_blink_core(int idx, int ontime, int offtime, bool wait) {
+bool led_blink_core(int idx, int ontime, int offtime, bool pushed) {
 	if (!leds[idx].gpio) return false;
 	
 	if (leds[idx].timer) {
-		// low priority timers will wait	
-		if (wait && xTimerIsTimerActive(leds[idx].timer)) {
-			leds[idx].waiton = ontime; 
-			leds[idx].waitoff = offtime; 
+		// normal requests waits if a pop is pending
+		if (!pushed && leds[idx].pushed) {
+			leds[idx].pushedon = ontime; 
+			leds[idx].pushedoff = offtime; 
 			return true;
 		}
 		xTimerStop(leds[idx].timer, BLOCKTIME);
 	}
 	
+	// save current state
+	leds[idx].pushedon = leds[idx].ontime;
+	leds[idx].pushedoff = leds[idx].offtime;	
+	leds[idx].pushed = pushed;
+	
+	// then set new one
 	leds[idx].ontime = ontime;
 	leds[idx].offtime = offtime;	
 			
@@ -75,15 +82,11 @@ bool led_blink_core(int idx, int ontime, int offtime, bool wait) {
 	return true;
 } 
 
-bool led_release(int idx) {
+bool led_unpush(int idx) {
 	if (!leds[idx].gpio) return false;
 	
-	if (leds[idx].waiton) {
-		led_blink_core(idx, leds[idx].waiton, leds[idx].waitoff, false);
-		leds[idx].waiton = 0;
-	} else {
-		gpio_set_level(leds[idx].gpio, !leds[idx].onstate);
-	}	
+	led_blink_core(idx, leds[idx].pushedon, leds[idx].pushedoff, true);
+	leds[idx].pushed = false;
 	
 	return true;
 }	
@@ -96,6 +99,14 @@ bool led_config(int idx, gpio_num_t gpio, int onstate) {
 	gpio_pad_select_gpio(gpio);
 	gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
 	gpio_set_level(gpio, !onstate);
+	
+	return true;
+}
+
+bool led_unconfig(int idx) {
+	if (idx >= MAX_LED) return false;	
+	
+	if (leds[idx].timer) xTimerDelete(leds[idx].timer, BLOCKTIME);
 	
 	return true;
 }

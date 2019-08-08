@@ -102,6 +102,7 @@ static i2s_config_t i2s_config;
 static int bytes_per_frame;
 static thread_type thread, stats_thread;
 static u8_t *obuf;
+static bool spdif;
 
 DECLARE_ALL_MIN_MAX;
 
@@ -110,6 +111,7 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 static void *output_thread_i2s();
 static void *output_thread_i2s_stats();
 static void dac_cmd(dac_cmd_e cmd, ...);
+static void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *count);
 
 #ifdef CONFIG_SQUEEZEAMP
 
@@ -228,7 +230,7 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 		LOG_ERROR("Cannot allocate i2s buffer");
 		return;
 	}
-	
+		
 	running=true;
 
 	i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
@@ -346,31 +348,27 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
  * Main output thread
  */
 static void *output_thread_i2s() {
-	frames_t iframes = FRAME_BLOCK, oframes;
-	size_t bytes;
+	size_t count = 0, bytes, frame_block = spdif ? FRAME_BLOCK / 4 : FRAME_BLOCK;;
+	frames_t iframes = frame_block, oframes;
 	uint32_t timer_start = 0;
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
 	bool synced;
-#ifdef TAS575x					
 	output_state state = OUTPUT_OFF;
-#endif	
-		
+	
 	while (running) {
 			
 		TIME_MEASUREMENT_START(timer_start);
 		
 		LOCK;
 		
-#ifdef TAS575x						
 		// manage led display
 		if (state != output.state) {
 			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
-			else if (output.state == OUTPUT_STOPPED) led_blink_wait(LED_GREEN, 200, 1000);
+			else if (output.state == OUTPUT_STOPPED) led_blink(LED_GREEN, 200, 1000);
 			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
 		}
 		state = output.state;
-#endif				
 		
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
@@ -379,6 +377,7 @@ static void *output_thread_i2s() {
 				isI2SStarted = false;
 				i2s_stop(CONFIG_I2S_NUM);
 				dac_cmd(DAC_OFF);
+				count = 0;
 			}
 			LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(39), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
 			usleep(200000);
@@ -392,7 +391,8 @@ static void *output_thread_i2s() {
 		// try to estimate how much we have consumed from the DMA buffer
 		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
 				
-		oframes = _output_frames( iframes ); 
+		oframes = _output_frames( iframes );
+		if (spdif) spdif_convert((ISAMPLE_T*) obuf, iframes, (u32_t*) obuf, &count);
 		
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
@@ -407,7 +407,7 @@ static void *output_thread_i2s() {
 			synced = true;
 		} else if (discard) {
 			discard -= oframes;
-			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
+			iframes = discard ? min(frame_block, discard) : frame_block;
 			UNLOCK;
 			continue;
 		}
@@ -521,6 +521,101 @@ void dac_cmd(dac_cmd_e cmd, ...) {
 #endif	
 	va_end(args);
 }
+
+#define PREAMBLE_B  (0xE8) //11101000
+#define PREAMBLE_M  (0xE2) //11100010
+#define PREAMBLE_W  (0xE4) //11100100
+
+#define VUCP   		((0xCC) << 24)
+#define VUCP_MUTE 	((0xD4) << 24)	// To mute PCM, set VUCP = invalid.
+
+extern const u16_t spdif_bmclookup[256];
+
+void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *count) {
+	u16_t hi, lo, aux;
+	size_t pos;
+
+	// frames are 2 channels of 16 bits
+	frames *= 2;
+
+	// update frame counter for next call
+	*count = (*count + frames) % 384;
+
+	// start at the end so that we can do in-place
+	src += frames - 1;
+	dst += (frames  - 1) * 2;
+	pos = *count ? *count - 1 : 383;
+
+	while (frames--) {
+#if BYTES_PER_FRAME == 4		
+		hi  = spdif_bmclookup[(u8_t)(*src >> 8)];
+		lo  = spdif_bmclookup[(u8_t) *src];
+#else
+		hi  = spdif_bmclookup[(u8_t)(*src >> 24)];
+		lo  = spdif_bmclookup[(u8_t) *src >> 16];
+#endif	
+		// TODO: verify this cast
+		lo ^= ~((s16_t)hi) >> 16;
+
+		// 16 bits sample:
+		*(dst+1) = ((u32_t)lo << 16) | hi;
+
+		// 4 bits auxillary-audio-databits, the first used as parity
+		// TODO: verify this cast
+		aux = 0xb333 ^ (((u32_t)((s16_t)lo)) >> 17);
+
+		// VUCP-Bits: Valid, Subcode, Channelstatus, Parity = 0
+		// As parity is always 0, we can use fixed preambles
+		if (!pos) {
+			*dst =  VUCP | (PREAMBLE_B << 16 ) | aux; //special preamble for one of 192 frames
+			pos = 384 - 1;
+		} else {
+			*dst = VUCP | (((pos & 0x01) ? PREAMBLE_M : PREAMBLE_W) << 16) | aux;
+			pos--;
+		}
+
+		src--;
+		dst -= 2;
+	}
+}
+
+const u16_t spdif_bmclookup[256] = { //biphase mark encoded values (least significant bit first)
+	0xcccc, 0x4ccc, 0x2ccc, 0xaccc, 0x34cc, 0xb4cc, 0xd4cc, 0x54cc,
+	0x32cc, 0xb2cc, 0xd2cc, 0x52cc, 0xcacc, 0x4acc, 0x2acc, 0xaacc,
+	0x334c, 0xb34c, 0xd34c, 0x534c, 0xcb4c, 0x4b4c, 0x2b4c, 0xab4c,
+	0xcd4c, 0x4d4c, 0x2d4c, 0xad4c, 0x354c, 0xb54c, 0xd54c, 0x554c,
+	0x332c, 0xb32c, 0xd32c, 0x532c, 0xcb2c, 0x4b2c, 0x2b2c, 0xab2c,
+	0xcd2c, 0x4d2c, 0x2d2c, 0xad2c, 0x352c, 0xb52c, 0xd52c, 0x552c,
+	0xccac, 0x4cac, 0x2cac, 0xacac, 0x34ac, 0xb4ac, 0xd4ac, 0x54ac,
+	0x32ac, 0xb2ac, 0xd2ac, 0x52ac, 0xcaac, 0x4aac, 0x2aac, 0xaaac,
+	0x3334, 0xb334, 0xd334, 0x5334, 0xcb34, 0x4b34, 0x2b34, 0xab34,
+	0xcd34, 0x4d34, 0x2d34, 0xad34, 0x3534, 0xb534, 0xd534, 0x5534,
+	0xccb4, 0x4cb4, 0x2cb4, 0xacb4, 0x34b4, 0xb4b4, 0xd4b4, 0x54b4,
+	0x32b4, 0xb2b4, 0xd2b4, 0x52b4, 0xcab4, 0x4ab4, 0x2ab4, 0xaab4,
+	0xccd4, 0x4cd4, 0x2cd4, 0xacd4, 0x34d4, 0xb4d4, 0xd4d4, 0x54d4,
+	0x32d4, 0xb2d4, 0xd2d4, 0x52d4, 0xcad4, 0x4ad4, 0x2ad4, 0xaad4,
+	0x3354, 0xb354, 0xd354, 0x5354, 0xcb54, 0x4b54, 0x2b54, 0xab54,
+	0xcd54, 0x4d54, 0x2d54, 0xad54, 0x3554, 0xb554, 0xd554, 0x5554,
+	0x3332, 0xb332, 0xd332, 0x5332, 0xcb32, 0x4b32, 0x2b32, 0xab32,
+	0xcd32, 0x4d32, 0x2d32, 0xad32, 0x3532, 0xb532, 0xd532, 0x5532,
+	0xccb2, 0x4cb2, 0x2cb2, 0xacb2, 0x34b2, 0xb4b2, 0xd4b2, 0x54b2,
+	0x32b2, 0xb2b2, 0xd2b2, 0x52b2, 0xcab2, 0x4ab2, 0x2ab2, 0xaab2,
+	0xccd2, 0x4cd2, 0x2cd2, 0xacd2, 0x34d2, 0xb4d2, 0xd4d2, 0x54d2,
+	0x32d2, 0xb2d2, 0xd2d2, 0x52d2, 0xcad2, 0x4ad2, 0x2ad2, 0xaad2,
+	0x3352, 0xb352, 0xd352, 0x5352, 0xcb52, 0x4b52, 0x2b52, 0xab52,
+	0xcd52, 0x4d52, 0x2d52, 0xad52, 0x3552, 0xb552, 0xd552, 0x5552,
+	0xccca, 0x4cca, 0x2cca, 0xacca, 0x34ca, 0xb4ca, 0xd4ca, 0x54ca,
+	0x32ca, 0xb2ca, 0xd2ca, 0x52ca, 0xcaca, 0x4aca, 0x2aca, 0xaaca,
+	0x334a, 0xb34a, 0xd34a, 0x534a, 0xcb4a, 0x4b4a, 0x2b4a, 0xab4a,
+	0xcd4a, 0x4d4a, 0x2d4a, 0xad4a, 0x354a, 0xb54a, 0xd54a, 0x554a,
+	0x332a, 0xb32a, 0xd32a, 0x532a, 0xcb2a, 0x4b2a, 0x2b2a, 0xab2a,
+	0xcd2a, 0x4d2a, 0x2d2a, 0xad2a, 0x352a, 0xb52a, 0xd52a, 0x552a,
+	0xccaa, 0x4caa, 0x2caa, 0xacaa, 0x34aa, 0xb4aa, 0xd4aa, 0x54aa,
+	0x32aa, 0xb2aa, 0xd2aa, 0x52aa, 0xcaaa, 0x4aaa, 0x2aaa, 0xaaaa
+};
+
+
+
 
 
 

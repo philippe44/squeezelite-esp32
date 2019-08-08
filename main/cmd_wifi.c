@@ -47,10 +47,10 @@ static void event_handler(void* arg, esp_event_base_t event_base,
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         esp_wifi_connect();
-		led_blink(LED_GREEN, 250, 250);
+		led_blink_pushed(LED_GREEN, 250, 250);
         xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-		led_release(LED_GREEN);
+		led_unpush(LED_GREEN);
         xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
     }
 }
