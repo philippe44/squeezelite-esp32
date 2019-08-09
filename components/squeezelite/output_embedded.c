@@ -87,7 +87,7 @@ bool test_open(const char *device, unsigned rates[], bool userdef_rates) {
 	if (!strcmp(device, "BT")) {
 		rates[0] = 44100;	
 	} else {
-		unsigned _rates[] = { 96000, 88200, 48000, 44100, 32000, 0 };	
+		unsigned _rates[] = { 192000, 176400, 96000, 88200, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 0 };	
 		memcpy(rates, _rates, sizeof(_rates));
 	}
 	return true;

@@ -129,6 +129,7 @@ static void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *cou
 #define I2C_PORT	0
 #define I2C_ADDR	0x4c
 #define VOLUME_GPIO	33
+#define JACK_GPIO	39
 
 struct tas575x_cmd_s {
 	u8_t reg;
@@ -167,8 +168,10 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	loglevel = level;
 	
 #ifdef TAS575x
-	gpio_pad_select_gpio(39);
-	gpio_set_direction(39, GPIO_MODE_INPUT);
+	spdif = 0;
+	
+	gpio_pad_select_gpio(JACK_GPIO);
+	gpio_set_direction(JACK_GPIO, GPIO_MODE_INPUT);
 	
 	adc1_config_width(ADC_WIDTH_BIT_12);
     adc1_config_channel_atten(ADC1_CHANNEL_0,ADC_ATTEN_DB_0);
@@ -225,7 +228,9 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 #endif
 
 	output.write_cb = &_i2s_write_frames;
-	obuf = malloc(FRAME_BLOCK * bytes_per_frame);
+	// spdif needs 16 bytes per frame : 32 bits/sample, 2 channels, BMC encoded
+	if (spdif) obuf = malloc(FRAME_BLOCK * 16);
+	else obuf = malloc(FRAME_BLOCK * bytes_per_frame);
 	if (!obuf) {
 		LOG_ERROR("Cannot allocate i2s buffer");
 		return;
@@ -258,6 +263,11 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 	isI2SStarted=false;
 	
+	/*
+	i2s_set_clk(pll, 48000 * 2, 32, 2);
+	i2s_set_clk(pll, 44100 * 2, 32, 2);
+	*/
+
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
@@ -348,8 +358,8 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
  * Main output thread
  */
 static void *output_thread_i2s() {
-	size_t count = 0, bytes, frame_block = spdif ? FRAME_BLOCK / 4 : FRAME_BLOCK;;
-	frames_t iframes = frame_block, oframes;
+	size_t count = 0, bytes;
+	frames_t iframes = FRAME_BLOCK, oframes;
 	uint32_t timer_start = 0;
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
@@ -379,7 +389,6 @@ static void *output_thread_i2s() {
 				dac_cmd(DAC_OFF);
 				count = 0;
 			}
-			LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(39), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
 			usleep(200000);
 			continue;
 		} else if (output.state == OUTPUT_STOPPED) {
@@ -390,10 +399,8 @@ static void *output_thread_i2s() {
 		output.frames_played_dmp = output.frames_played;
 		// try to estimate how much we have consumed from the DMA buffer
 		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
-				
 		oframes = _output_frames( iframes );
-		if (spdif) spdif_convert((ISAMPLE_T*) obuf, iframes, (u32_t*) obuf, &count);
-		
+				
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
@@ -407,7 +414,7 @@ static void *output_thread_i2s() {
 			synced = true;
 		} else if (discard) {
 			discard -= oframes;
-			iframes = discard ? min(frame_block, discard) : frame_block;
+			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
 			UNLOCK;
 			continue;
 		}
@@ -437,12 +444,19 @@ static void *output_thread_i2s() {
 			*/
 			i2s_config.sample_rate = output.current_sample_rate;
 			i2s_set_sample_rates(CONFIG_I2S_NUM, i2s_config.sample_rate);
+// in spif mode, each sample is a 32 bits value and because of BMC, clock rate must be doubled
+//i2s_set_clk(0, i2s_config.sample_rate * 2, 32, 2);
 			i2s_zero_dma_buffer(CONFIG_I2S_NUM);
 			//return;
 		}
 		
 		// we assume that here we have been able to entirely fill the DMA buffers
-		i2s_write(CONFIG_I2S_NUM, obuf, oframes * bytes_per_frame, &bytes, portMAX_DELAY);
+		if (spdif) {
+			spdif_convert((ISAMPLE_T*) obuf, oframes, (u32_t*) obuf, &count);
+			i2s_write(CONFIG_I2S_NUM, obuf, oframes * 16, &bytes, portMAX_DELAY);
+		} else {
+			i2s_write(CONFIG_I2S_NUM, obuf, oframes * bytes_per_frame, &bytes, portMAX_DELAY);			
+		}	
 		fullness = gettime_ms();
 			
 		if (bytes != oframes * bytes_per_frame) {
@@ -461,6 +475,7 @@ static void *output_thread_i2s() {
  */
 static void *output_thread_i2s_stats() {
 	while (running) {
+		LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(JACK_GPIO), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
 		LOCK;
 		output_state state = output.state;
 		UNLOCK;
