@@ -172,6 +172,30 @@ menu "Squeezelite-ESP32"
 			    default 8 if I2S_BITS_PER_CHANNEL_8
 		endmenu
 		
+		menu "SPDIF settings" 
+		    depends on BASIC_I2C_BT
+			config SDIF_NUM         
+		        int "SDPIF/I2S channel (0 or 1)"
+		        default 0
+		        help
+		            I2S dma channel to use.  
+		    config SPDIF_BCK_IO         
+		        int "SDPIF/I2S Bit clock GPIO number"
+		        default 26
+		        help
+		            Not used but must be configured.  
+		    config SPDIF_WS_IO         
+		        int "SPDIF/I2S Word Select GPIO number"
+		        default 25
+		        help
+		            Not used but must be configured.  
+		    config SPDIF_DO_IO         
+		        int "I2S Data I/O GPIO number"
+		        default 15
+		        help
+		            SPDIF/I2S data I/O gpio pin to use
+		endmenu
+				
 		menu "A2DP settings"
 		    config A2DP_SINK_NAME
 		        string "Name of Bluetooth A2DP device"
