@@ -59,10 +59,12 @@ bool led_blink_core(int idx, int ontime, int offtime, bool pushed) {
 		xTimerStop(leds[idx].timer, BLOCKTIME);
 	}
 	
-	// save current state
-	leds[idx].pushedon = leds[idx].ontime;
-	leds[idx].pushedoff = leds[idx].offtime;	
-	leds[idx].pushed = pushed;
+	// save current state if not already pushed
+	if (!leds[idx].pushed) {
+		leds[idx].pushedon = leds[idx].ontime;
+		leds[idx].pushedoff = leds[idx].offtime;	
+		leds[idx].pushed = pushed;
+	}	
 	
 	// then set new one
 	leds[idx].ontime = ontime;

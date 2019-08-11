@@ -414,6 +414,7 @@ static void *output_thread_i2s() {
 		
 		// manage led display
 		if (state != output.state) {
+			LOG_INFO("Output state is %u", output.state);
 			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
 			else if (output.state == OUTPUT_STOPPED) led_blink(LED_GREEN, 200, 1000);
 			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
@@ -422,7 +423,6 @@ static void *output_thread_i2s() {
 		
 		if (output.state == OUTPUT_OFF) {
 			UNLOCK;
-			LOG_INFO("Output state is off.");
 			if (isI2SStarted) {
 				isI2SStarted = false;
 				i2s_stop(CONFIG_I2S_NUM);
@@ -580,6 +580,10 @@ void dac_cmd(dac_cmd_e cmd, ...) {
 	va_end(args);
 }
 
+/****************************************************************************************
+ * SPDIF support
+ */
+ 
 #define PREAMBLE_B  (0xE8) //11101000
 #define PREAMBLE_M  (0xE2) //11100010
 #define PREAMBLE_W  (0xE4) //11100100
@@ -595,7 +599,8 @@ extern const u16_t spdif_bmclookup[256];
  after BMC encoding, each bits becomes 2 hence this becomes a 64 bits word. The
  the trick is to start not with a PPPP sequence but with an VUCP sequence to that
  the 16 bits samples are aligned with a BMC word boundary. Note that the LSB of the
- audio is transmitted first (not the MSB)
+ audio is transmitted first (not the MSB) and that ESP32 libray sends R then L, 
+ contrary to what seems to be usually done, so (dst) order had to be changed
 */
 void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *count) {
 	u16_t hi, lo, aux;
