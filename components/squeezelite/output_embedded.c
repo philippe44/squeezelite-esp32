@@ -37,6 +37,10 @@ extern void output_init_i2s(log_level level, char *device, unsigned output_buf_s
 extern bool output_volume_i2s(unsigned left, unsigned right); 
 extern void output_close_i2s(void); 
 
+#ifdef CONFIG_BT_SINK
+extern void decode_bt_init(void);
+#endif
+
 static log_level loglevel;
 
 static bool (*volume_cb)(unsigned left, unsigned right);
@@ -52,7 +56,7 @@ void output_init_embedded(log_level level, char *device, unsigned output_buf_siz
 	output.start_frames = FRAME_BLOCK;
 	output.rate_delay = rate_delay;
 	
-	if (strstr(device, "BT ")) {
+	if (strcasestr(device, "BT ")) {
 		LOG_INFO("init Bluetooth");
 		close_cb = &output_close_bt;
 		output_init_bt(level, device, output_buf_size, params, rates, rate_delay, idle);

@@ -198,6 +198,10 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 	else if (!(strstr(exclude_codecs, "mp3") || strstr(exclude_codecs, "mpg")) &&
 		(!include_codecs || (order_codecs = strstr(include_codecs, "mp3")) || (order_codecs = strstr(include_codecs, "mpg"))))
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mpg());
+		
+#if EMBEDDED
+	register_other();
+#endif 	
 
 	LOG_DEBUG("include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);
 

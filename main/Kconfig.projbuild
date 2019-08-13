@@ -219,5 +219,26 @@ menu "Squeezelite-ESP32"
 		            Increasing this value will give more chance for less stable connections to be established.	   
 		endmenu
 	endmenu
+	
+	menu "Audio Input"
+		config BT_SINK
+			bool "Bluetooth receiver"
+			default y
+			help
+				Enable bluetooth sink (Note that you obviously can't at the same time be a Bluetooth receiver and transmitter)
+		config BT_SINK_NAME
+			depends on BT_SINK
+			string "Name of Bluetooth A2DP device"
+		        default "ESP32"
+		    help
+				This is the name of the bluetooth speaker that will be broadcasted			
+		config BT_SINK_PIN		
+			depends on BT_SINK		
+			int "Bluetooth PIN code"
+		        default 1234
+		config AIRPLAY_SINK
+			bool "AirPlay receiver (not availabe now)"
+			default n
+	endmenu	
 
 endmenu

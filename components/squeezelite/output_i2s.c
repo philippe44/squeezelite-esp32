@@ -414,7 +414,7 @@ static void *output_thread_i2s() {
 		
 		// manage led display
 		if (state != output.state) {
-			LOG_INFO("Output state is %u", output.state);
+			LOG_INFO("Output state is %d", output.state);
 			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
 			else if (output.state == OUTPUT_STOPPED) led_blink(LED_GREEN, 200, 1000);
 			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
@@ -604,7 +604,6 @@ extern const u16_t spdif_bmclookup[256];
 */
 void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *count) {
 	u16_t hi, lo, aux;
-	size_t pos;
 	
 	// frames are 2 channels of 16 bits
 	frames *= 2;
