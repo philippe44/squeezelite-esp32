@@ -151,7 +151,7 @@ static void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *cou
 #define I2C_PORT	0
 #define I2C_ADDR	0x4c
 #define VOLUME_GPIO	33
-#define JACK_GPIO	39
+#define JACK_GPIO	34
 
 struct tas575x_cmd_s {
 	u8_t reg;
@@ -192,9 +192,9 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 #ifdef TAS575x
 	gpio_pad_select_gpio(JACK_GPIO);
 	gpio_set_direction(JACK_GPIO, GPIO_MODE_INPUT);
-	
+			
 	adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(ADC1_CHANNEL_0,ADC_ATTEN_DB_0);
+    adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_0);
     			
 	// init volume & mute
 	gpio_pad_select_gpio(VOLUME_GPIO);
@@ -272,7 +272,7 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 									};
 		i2s_config.sample_rate = output.current_sample_rate;
 		i2s_config.bits_per_sample = bytes_per_frame * 8 / 2;
-#ifdef TAS575x		
+#ifdef TAS575x	
 		gpio_pad_select_gpio(CONFIG_SPDIF_DO_IO);
 		gpio_set_direction(CONFIG_SPDIF_DO_IO, GPIO_MODE_OUTPUT);
 		gpio_set_level(CONFIG_SPDIF_DO_IO, 0);
@@ -417,7 +417,7 @@ static void *output_thread_i2s() {
 			LOG_INFO("Output state is %d", output.state);
 			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
 			else if (output.state == OUTPUT_STOPPED) led_blink(LED_GREEN, 200, 1000);
-			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
+			else if (output.state >= OUTPUT_RUNNING) led_on(LED_GREEN);
 		}
 		state = output.state;
 		
@@ -517,7 +517,7 @@ static void *output_thread_i2s() {
 static void *output_thread_i2s_stats() {
 	while (running) {
 #ifdef TAS575x		
-		LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(JACK_GPIO), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
+		LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(JACK_GPIO), adc1_get_raw(ADC1_CHANNEL_7) / 4095. * (10+174)/10. * 1.1);
 #endif		
 		LOCK;
 		output_state state = output.state;

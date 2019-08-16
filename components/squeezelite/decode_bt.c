@@ -42,7 +42,7 @@ static void bt_sink_data_handler(const uint8_t *data, uint32_t len)
 	
 	// would be better to lock decoder, but really, it does not matter
 	if (decode.state != DECODE_STOPPED) {
-		LOG_WARN("Cannot use BT sink while LMS is controlling player");
+		LOG_SDEBUG("Cannot use BT sink while LMS is controlling player");
 		return;
 	} 
 	
