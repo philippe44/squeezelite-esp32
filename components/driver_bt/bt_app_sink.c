@@ -21,6 +21,7 @@
 #include "esp_gap_bt_api.h"
 #include "esp_a2dp_api.h"
 #include "esp_avrc_api.h"
+#include "nvs.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -39,8 +40,10 @@
 #define BT_RC_CT_TAG            "RCCT"
 
 #ifndef CONFIG_BT_SINK_NAME
-#define CONFIG_BT_SINK_NAME	"unavailable"
+#define CONFIG_BT_SINK_NAME	"default"
 #endif
+
+extern char current_namespace[];
 
 /* event for handler "bt_av_hdl_stack_up */
 enum {
@@ -449,9 +452,17 @@ static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
     switch (event) {
     case BT_APP_EVT_STACK_UP: {
         /* set up device name */
-        char *dev_name = CONFIG_BT_SINK_NAME;
-        esp_bt_dev_set_device_name(dev_name);
-
+		nvs_handle nvs;
+        char dev_name[32] = CONFIG_BT_SINK_NAME;
+				
+		if (nvs_open(current_namespace, NVS_READONLY, &nvs) == ESP_OK) {
+			size_t len = 31;
+			nvs_get_str(nvs, "bt_sink_name", dev_name, &len);
+			nvs_close(nvs);
+		}	
+				
+		esp_bt_dev_set_device_name(dev_name);
+		
         esp_bt_gap_register_callback(bt_app_gap_cb);
 
         /* initialize AVRCP controller */

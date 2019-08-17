@@ -417,7 +417,7 @@ static void *output_thread_i2s() {
 			LOG_INFO("Output state is %d", output.state);
 			if (output.state == OUTPUT_OFF) led_blink(LED_GREEN, 100, 2500);
 			else if (output.state == OUTPUT_STOPPED) led_blink(LED_GREEN, 200, 1000);
-			else if (output.state >= OUTPUT_RUNNING) led_on(LED_GREEN);
+			else if (output.state == OUTPUT_RUNNING) led_on(LED_GREEN);
 		}
 		state = output.state;
 		

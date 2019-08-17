@@ -20,6 +20,11 @@ nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 nvs_set autoexec u8 -v 1		
 
+4/ set bluetooth & airplaysink name (if not set in menuconfig)
+
+nvs_set bt_sink_name str -v "<name>"
+nvs_set airplay_sink_name str -v "<name>"
+
 The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
 
 The squeezelite options are very similar to the regular Linux ones. Differences are :

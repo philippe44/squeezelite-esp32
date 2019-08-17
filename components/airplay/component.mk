@@ -8,5 +8,3 @@
 #
 
 CFLAGS += 	-I$(COMPONENT_PATH)/../tools
-			
-#CFLAGS += -DLOG_LOCAL_LEVEL=ESP_LOG_DEBUG

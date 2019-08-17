@@ -21,6 +21,7 @@
  
 #include "squeezelite.h"
 #include "bt_app_sink.h"
+#include "airplay_sink.h"
 
 #define LOCK_O   mutex_lock(outputbuf->mutex)
 #define UNLOCK_O mutex_unlock(outputbuf->mutex)
@@ -92,15 +93,17 @@ static void bt_sink_cmd_handler(bt_sink_cmd_t cmd, ...)
 		
 	switch(cmd) {
 	case BT_SINK_CONNECTED:
+		output.external = true;
 		output.state = OUTPUT_STOPPED;
 		LOG_INFO("BT sink started");
 		break;
 	case BT_SINK_DISCONNECTED:	
+		output.external = false;
 		output.state = OUTPUT_OFF;
 		LOG_INFO("BT sink stopped");
 		break;
 	case BT_SINK_PLAY:
-		output.state = OUTPUT_EXTERNAL;
+		output.state = OUTPUT_RUNNING;
 		LOG_INFO("BT sink playing");
 		break;
 	case BT_SINK_PAUSE:		
@@ -138,4 +141,12 @@ void register_other(void) {
 		LOG_WARN("Cannot be a BT sink and source");
 	}	
 #endif	
+#ifdef CONFIG_AIRPLAY_SINK
+	if (!strcasestr(output.device, "BT ")) {
+		airplay_sink_init();
+		LOG_INFO("Initializing AirPlay sink");		
+	} else {
+		LOG_WARN("Cannot be an AirPlay sink and BT source");
+	}	
+#endif
 }
