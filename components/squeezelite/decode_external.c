@@ -118,8 +118,8 @@ static void bt_sink_cmd_handler(bt_sink_cmd_t cmd, ...)
 		LOG_INFO("BT sink stopped");
 		break;
 	case BT_SINK_RATE:
-		output.current_sample_rate = va_arg(args, u32_t);
-		LOG_INFO("Setting BT sample rate %u", output.current_sample_rate);
+		output.next_sample_rate = va_arg(args, u32_t);
+		LOG_INFO("Setting BT sample rate %u", output.next_sample_rate);
 		break;
 	case BT_SINK_VOLUME: {
 		u16_t volume = (u16_t) va_arg(args, u32_t);
@@ -157,9 +157,9 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			LOG_INFO("Stream", NULL);
 			raop_state = event;
 			output.external = true;
-			output.current_sample_rate = 44100;
+			output.next_sample_rate = 44100;
 			output.state = OUTPUT_BUFFER;
-			output.threshold = 5;
+			output.threshold = 10;
 			break;
 		case RAOP_STOP:
 			LOG_INFO("Stop", NULL);

@@ -72,7 +72,7 @@ static log_level 	*loglevel = &raop_loglevel;
 //#define __RTP_STORE
 
 // default buffer size
-#define BUFFER_FRAMES (44100 / 352 + 1)
+#define BUFFER_FRAMES ( (120 * 44100) / (352 * 100) )
 #define MAX_PACKET    1408
 
 #define RTP_SYNC	(0x01)
@@ -499,6 +499,7 @@ static void buffer_push_packet(rtp_t *ctx) {
 			//LOG_INFO("[%p]: discarded frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
 		} else if (curframe->ready) {
 			ctx->callback((const u8_t*) curframe->data, curframe->len);
+			curframe->ready = 0;
 		} else if (now >= playtime) {
 			LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
 			ctx->callback(silence_frame, ctx->frame_size * 4);
@@ -508,6 +509,7 @@ static void buffer_push_packet(rtp_t *ctx) {
 
 		if (curframe->ready) {
 			ctx->callback((const u8_t*) curframe->data, curframe->len);
+			curframe->ready = 0;
 		} else if (now >= playtime) {
 			LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
 			ctx->callback(silence_frame, ctx->frame_size * 4);
