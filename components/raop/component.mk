@@ -7,4 +7,7 @@
 # please read the SDK documents if you need to do this.
 #
 
-CFLAGS += 	-I$(COMPONENT_PATH)/../tools
+CFLAGS += -fstack-usage \
+	-I$(COMPONENT_PATH)/../tools	\
+	-I$(COMPONENT_PATH)/../codecs/inc/alac
+	

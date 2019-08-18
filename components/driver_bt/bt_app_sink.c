@@ -355,7 +355,7 @@ static void bt_av_hdl_avrc_tg_evt(uint16_t event, void *p_param)
     }
 }
 
-void bt_sink_init(void (*cmd_cb)(bt_sink_cmd_t cmd, ...), void (*data_cb)(const uint8_t *data, uint32_t len))
+void bt_sink_init(bt_cmd_cb_t cmd_cb, bt_data_cb_t data_cb)
 {
 	esp_err_t err;
 	
