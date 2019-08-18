@@ -493,9 +493,10 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 			kd_add(resp, "Audio-Latency", latency);
 		}
 
-		buf = kd_lookup(headers, "RTP-Info");
-		if ((p = strcasestr(buf, "seq")) != NULL) sscanf(p, "%*[^=]=%hu", &seqno);
-		if ((p = strcasestr(buf, "rtptime")) != NULL) sscanf(p, "%*[^=]=%u", &rtptime);
+		if ((buf = kd_lookup(headers, "RTP-Info")) != NULL) {
+			if ((p = strcasestr(buf, "seq")) != NULL) sscanf(p, "%*[^=]=%hu", &seqno);
+			if ((p = strcasestr(buf, "rtptime")) != NULL) sscanf(p, "%*[^=]=%u", &rtptime);
+    	}
 
 		if (ctx->rtp) rtp_record(ctx->rtp, seqno, rtptime);
 
