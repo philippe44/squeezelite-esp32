@@ -53,7 +53,6 @@ typedef struct raop_ctx_s {
 	int sock;               // socket of the above
 	struct in_addr peer;	// IP of the iDevice (airplay sender)
 	bool running;
-	bool drift;
 #ifdef WIN32
 	pthread_t thread, search_thread;
 #else
@@ -141,8 +140,7 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 	ctx->sock = socket(AF_INET, SOCK_STREAM, 0);
 	ctx->cmd_cb = cmd_cb;
 	ctx->data_cb = data_cb;
-	ctx->drift = false;
-	ctx->latency = min(latency, 44100);
+	ctx->latency = min(latency, 88200);
 	if (ctx->sock == -1) {
 		LOG_ERROR("Cannot create listening socket", NULL);
 		free(ctx);
@@ -464,9 +462,8 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 		if ((p = strcasestr(buf, "timing_port")) != NULL) sscanf(p, "%*[^=]=%hu", &tport);
 		if ((p = strcasestr(buf, "control_port")) != NULL) sscanf(p, "%*[^=]=%hu", &cport);
 
-		rtp = rtp_init(ctx->peer, false, ctx->drift, true, ctx->latency,
-							ctx->rtsp.aeskey, ctx->rtsp.aesiv, ctx->rtsp.fmtp,
-							cport, tport, ctx->data_cb);
+		rtp = rtp_init(ctx->peer, ctx->latency,	ctx->rtsp.aeskey, ctx->rtsp.aesiv,
+					   ctx->rtsp.fmtp, cport, tport, ctx->cmd_cb, ctx->data_cb);
 
 		ctx->rtp = rtp.ctx;
 
@@ -493,10 +490,9 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 			kd_add(resp, "Audio-Latency", latency);
 		}
 
-		if ((buf = kd_lookup(headers, "RTP-Info")) != NULL) {
-			if ((p = strcasestr(buf, "seq")) != NULL) sscanf(p, "%*[^=]=%hu", &seqno);
-			if ((p = strcasestr(buf, "rtptime")) != NULL) sscanf(p, "%*[^=]=%u", &rtptime);
-    	}
+		buf = kd_lookup(headers, "RTP-Info");
+		if (buf && (p = strcasestr(buf, "seq")) != NULL) sscanf(p, "%*[^=]=%hu", &seqno);
+		if (buf && (p = strcasestr(buf, "rtptime")) != NULL) sscanf(p, "%*[^=]=%u", &rtptime);
 
 		if (ctx->rtp) rtp_record(ctx->rtp, seqno, rtptime);
 
@@ -537,7 +533,7 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 	} if (!strcmp(method, "SET_PARAMETER")) {
 		char *p;
 
-		if ((p = strcasestr(body, "volume")) != NULL) {
+		if (body && (p = strcasestr(body, "volume")) != NULL) {
 			float volume;
 
 			sscanf(p, "%*[^:]:%f", &volume);
@@ -546,7 +542,7 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 			ctx->cmd_cb(RAOP_VOLUME, &volume);
 		}
 /*
-		if (((p = kd_lookup(headers, "Content-Type")) != NULL) && !strcasecmp(p, "application/x-dmap-tagged")) {
+		if (body && ((p = kd_lookup(headers, "Content-Type")) != NULL) && !strcasecmp(p, "application/x-dmap-tagged")) {
 			struct metadata_s metadata;
 			dmap_settings settings = {
 				NULL, NULL, NULL, NULL,	NULL, NULL,	NULL, on_dmap_string, NULL,

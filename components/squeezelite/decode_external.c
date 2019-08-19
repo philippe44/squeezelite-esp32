@@ -36,6 +36,10 @@ extern log_level loglevel;
 
 static raop_event_t	raop_state;
 static bool raop_expect_stop = false;
+static struct {
+	s32_t total, count;
+	u32_t start_time, msplayed;
+} raop_sync;
 
 /****************************************************************************************
  * Common sink data handler
@@ -112,8 +116,9 @@ static void bt_sink_cmd_handler(bt_sink_cmd_t cmd, ...)
 		output.state = OUTPUT_RUNNING;
 		LOG_INFO("BT sink playing");
 		break;
+	case BT_SINK_STOP:		
+		_buf_flush(outputbuf);
 	case BT_SINK_PAUSE:		
-	case BT_SINK_STOP:
 		output.state = OUTPUT_STOPPED;
 		LOG_INFO("BT sink stopped");
 		break;
@@ -152,14 +157,38 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 	
 	// this is async, so player might have been deleted
 	switch (event) {
+		case RAOP_TIMING: {
+			u32_t now = gettime_ms();
+			s32_t error;
+			
+			if (output.state < OUTPUT_RUNNING || output.frames_played_dmp < output.device_frames) break;
+			
+			raop_sync.total += *(s32_t*) param;
+			raop_sync.count++;
+			raop_sync.msplayed = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / 44100;
+			error = raop_sync.msplayed - (now - raop_sync.start_time);
+		
+			LOG_INFO("backend played %u, desired %u, (back:%d raop:%d)", raop_sync.msplayed, now - raop_sync.start_time, error, raop_sync.total / raop_sync.count);
+			
+			if (error < -10) {
+				output.skip_frames = (abs(error) * 44100) / 1000;
+				output.state = OUTPUT_SKIP_FRAMES;					
+				LOG_INFO("skipping %u frames", output.skip_frames);
+			} else if (error > 10) {
+				output.pause_frames = (abs(error) * 44100) / 1000;
+				output.state = OUTPUT_PAUSE_FRAMES;
+				LOG_INFO("pausing for %u frames", output.pause_frames);
+			}
+						
+			break;
+		}
 		case RAOP_STREAM:
-			// a PLAY will come later, so we'll do the load at that time
 			LOG_INFO("Stream", NULL);
 			raop_state = event;
+			raop_sync.total = raop_sync.count = 0;			
 			output.external = true;
 			output.next_sample_rate = 44100;
-			output.state = OUTPUT_BUFFER;
-			output.threshold = 10;
+			output.state = OUTPUT_STOPPED;
 			break;
 		case RAOP_STOP:
 			LOG_INFO("Stop", NULL);
@@ -171,14 +200,17 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			LOG_INFO("Flush", NULL);
 			raop_expect_stop = true;
 			raop_state = event;
+			_buf_flush(outputbuf);		
 			output.state = OUTPUT_STOPPED;
+			output.frames_played = 0;
 			break;
 		case RAOP_PLAY: {
 			LOG_INFO("Play", NULL);
-			// this where we need the OUTPUT_START_AT
 			if (raop_state != RAOP_PLAY) {
-				output.external = true;
-				output.state = OUTPUT_RUNNING;
+				output.state = OUTPUT_START_AT;
+				output.start_at = *(u32_t*) param;
+				raop_sync.start_time = output.start_at;
+				LOG_INFO("Starting at %u (in %d ms)", output.start_at, output.start_at - gettime_ms());
 			}
 			raop_state = event;
 			break;

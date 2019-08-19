@@ -41,6 +41,7 @@
 
 #include "platform.h"
 #include "rtp.h"
+#include "raop_sink.h"
 #include "log_util.h"
 #include "util.h"
 
@@ -63,16 +64,13 @@
 #define MS2TS(ms, rate) ((((u64_t) (ms)) * (rate)) / 1000)
 #define TS2MS(ts, rate) NTP2MS(TS2NTP(ts,rate))
 
-#define GAP_THRES	8
-#define GAP_COUNT	20
-
-extern log_level 	raop_loglevel;
-static log_level 	*loglevel = &raop_loglevel;
+extern log_level 	raop_loglevel;
+static log_level 	*loglevel = &raop_loglevel;
 
 //#define __RTP_STORE
 
 // default buffer size
-#define BUFFER_FRAMES ( (120 * 44100) / (352 * 100) )
+#define BUFFER_FRAMES ( (120 * 88200) / (352 * 100) )
 #define MAX_PACKET    1408
 
 #define RTP_SYNC	(0x01)
@@ -103,7 +101,8 @@ typedef struct rtp_s {
 #else
 	mbedtls_aes_context aes;
 #endif
-	bool decrypt, range;
+	bool decrypt;
+	u8_t *decrypt_buf;
 	int frame_size, frame_duration;
 	int in_frames, out_frames;
 	struct in_addr host;
@@ -113,15 +112,11 @@ typedef struct rtp_s {
 		int sock;
 	} rtp_sockets[3]; 					 // data, control, timing
 	struct timing_s {
-		bool drift;
 		u64_t local, remote;
-		u32_t count, gap_count;
-		s64_t gap_sum, gap_adjust;
 	} timing;
 	struct {
 		u32_t 	rtp, time;
 		u8_t  	status;
-		bool	first, required;
 	} synchro;
 	struct {
 		u32_t time;
@@ -129,9 +124,10 @@ typedef struct rtp_s {
 		u32_t rtptime;
 	} record;
 	int latency;			// rtp hold depth in samples
-	u32_t resent_frames;	// total recovered frames
+	u32_t resent_req, resent_rec;	// total resent + recovered frames
 	u32_t silent_frames;	// total silence frames
 	u32_t filled_frames;    // silence frames in current silence episode
+	u32_t discarded;
 	int skip;				// number of frames to skip to keep sync alignement
 	abuf_t audio_buffer[BUFFER_FRAMES];
 	seq_t ab_read, ab_write;
@@ -144,7 +140,9 @@ typedef struct rtp_s {
 	alac_file *alac_codec;
 	int flush_seqno;
 	bool playing;
-	rtp_data_cb_t callback;
+	raop_data_cb_t data_cb;
+	raop_cmd_cb_t cmd_cb;
+u16_t syncS, syncN;
 } rtp_t;
 
 
@@ -192,10 +190,9 @@ static alac_file* alac_init(int fmtp[32]) {
 }
 
 /*---------------------------------------------------------------------------*/
-rtp_resp_t rtp_init(struct in_addr host, bool sync, bool drift, bool range,
-								int latency, char *aeskey, char *aesiv, char *fmtpstr,
+rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv, char *fmtpstr,
 								short unsigned pCtrlPort, short unsigned pTimingPort,
-								rtp_data_cb_t callback)
+								raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb)
 {
 	int i = 0;
 	char *arg;
@@ -208,15 +205,13 @@ rtp_resp_t rtp_init(struct in_addr host, bool sync, bool drift, bool range,
 
 	ctx->host = host;
 	ctx->decrypt = false;
-	ctx->callback = callback;
+	ctx->cmd_cb = cmd_cb;
+	ctx->data_cb = data_cb;
 	ctx->rtp_host.sin_family = AF_INET;
 	ctx->rtp_host.sin_addr.s_addr = INADDR_ANY;
 	pthread_mutex_init(&ctx->ab_mutex, 0);
 	ctx->flush_seqno = -1;
 	ctx->latency = latency;
-	ctx->synchro.required = sync;
-	ctx->timing.drift = drift;
-	ctx->range = range;
 
 	// write pointer = last written, read pointer = next to read so fill = w-r+1
 	ctx->ab_read = ctx->ab_write + 1;
@@ -238,6 +233,7 @@ rtp_resp_t rtp_init(struct in_addr host, bool sync, bool drift, bool range,
 		mbedtls_aes_setkey_dec(&ctx->aes, (unsigned char*) aeskey, 128);
 #endif
 		ctx->decrypt = true;
+		ctx->decrypt_buf = malloc(MAX_PACKET);
 	}
 
 	memset(fmtp, 0, sizeof(fmtp));
@@ -301,6 +297,7 @@ void rtp_end(rtp_t *ctx)
 
 	delete_alac(ctx->alac_codec);
 
+	if (ctx->decrypt_buf) free(ctx->decrypt_buf);
 	buffer_release(ctx->audio_buffer);
 	free(ctx);
 
@@ -324,7 +321,6 @@ bool rtp_flush(rtp_t *ctx, unsigned short seqno, unsigned int rtptime)
 		buffer_reset(ctx->audio_buffer);
 		ctx->playing = false;
 		ctx->flush_seqno = seqno;
-		ctx->synchro.first = false;
 		pthread_mutex_unlock(&ctx->ab_mutex);
 	}
 
@@ -376,7 +372,6 @@ static int seq_order(seq_t a, seq_t b) {
 
 /*---------------------------------------------------------------------------*/
 static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsize) {
-	unsigned char packet[MAX_PACKET];
 	unsigned char iv[16];
 	int aeslen;
 	assert(len<=MAX_PACKET);
@@ -385,12 +380,12 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 		aeslen = len & ~0xf;
 		memcpy(iv, ctx->aesiv, sizeof(iv));
 #ifdef WIN32
-		AES_cbc_encrypt((unsigned char*)buf, packet, aeslen, &ctx->aes, iv, AES_DECRYPT);
+		AES_cbc_encrypt((unsigned char*)buf, ctx->decrypt_buf, aeslen, &ctx->aes, iv, AES_DECRYPT);
 #else
-		mbedtls_aes_crypt_cbc(&ctx->aes, MBEDTLS_AES_DECRYPT, aeslen, iv, (unsigned char*) buf, packet);
+		mbedtls_aes_crypt_cbc(&ctx->aes, MBEDTLS_AES_DECRYPT, aeslen, iv, (unsigned char*) buf, ctx->decrypt_buf);
 #endif
-		memcpy(packet+aeslen, buf+aeslen, len-aeslen);
-		decode_frame(ctx->alac_codec, packet, dest, outsize);
+		memcpy(ctx->decrypt_buf+aeslen, buf+aeslen, len-aeslen);
+		decode_frame(ctx->alac_codec, ctx->decrypt_buf, dest, outsize);
 	} else decode_frame(ctx->alac_codec, (unsigned char*) buf, dest, outsize);
 }
 
@@ -398,19 +393,21 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 /*---------------------------------------------------------------------------*/
 static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool first, char *data, int len) {
 	abuf_t *abuf = NULL;
+	u32_t playtime;
 
 	pthread_mutex_lock(&ctx->ab_mutex);
 
 	if (!ctx->playing) {
 		if ((ctx->flush_seqno == -1 || seq_order(ctx->flush_seqno, seqno)) &&
-		   ((ctx->synchro.required && ctx->synchro.first) || !ctx->synchro.required)) {
+		   (ctx->synchro.status & RTP_SYNC && ctx->synchro.status & NTP_SYNC)) {
 			ctx->ab_write = seqno-1;
 			ctx->ab_read = seqno;
 			ctx->skip = 0;
 			ctx->flush_seqno = -1;
 			ctx->playing = true;
-			ctx->synchro.first = false;
-			ctx->resent_frames = ctx->silent_frames = 0;
+			ctx->resent_req = ctx->resent_rec = ctx->silent_frames = ctx->discarded = 0;
+			playtime = ctx->synchro.time + (((s32_t)(rtptime - ctx->synchro.rtp)) * 10) / 441;
+			ctx->cmd_cb(RAOP_PLAY, &playtime);
 		} else {
 			pthread_mutex_unlock(&ctx->ab_mutex);
 			return;
@@ -422,6 +419,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 		abuf = ctx->audio_buffer + BUFIDX(seqno);
 		ctx->ab_write = seqno;
 		LOG_SDEBUG("packet expected seqno:%hu rtptime:%u (W:%hu R:%hu)", seqno, rtptime, ctx->ab_write, ctx->ab_read);
+
 	} else if (seq_order(ctx->ab_write, seqno)) {
 		// newer than expected
 		if (seqno - ctx->ab_write - 1 > ctx->latency / ctx->frame_size) {
@@ -448,6 +446,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 	} else if (seq_order(ctx->ab_read, seqno + 1)) {
 		// recovered packet, not yet sent
 		abuf = ctx->audio_buffer + BUFIDX(seqno);
+		ctx->resent_rec++;
 		LOG_DEBUG("[%p]: packet recovered seqno:%hu rtptime:%u (W:%hu R:%hu)", ctx, seqno, rtptime, ctx->ab_write, ctx->ab_read);
 	} else {
 		// too late
@@ -455,7 +454,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 	}
 
 	if (ctx->in_frames++ > 1000) {
-		LOG_INFO("[%p]: fill [level:%hd] [W:%hu R:%hu]", ctx, (seq_t) (ctx->ab_write - ctx->ab_read + 1), ctx->ab_write, ctx->ab_read);
+		LOG_INFO("[%p]: fill [level:%hd rec:%u] [W:%hu R:%hu]", ctx, (seq_t) (ctx->ab_write - ctx->ab_read + 1), ctx->resent_rec, ctx->ab_write, ctx->ab_read);
 		ctx->in_frames = 0;
 	}
 
@@ -479,7 +478,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 // push as many frames as possible through callback
 static void buffer_push_packet(rtp_t *ctx) {
 	abuf_t *curframe = NULL;
-	u32_t now, playtime;
+	u32_t now, playtime, hold = max((ctx->latency * 1000) / (8 * 44100), 100);
 	int i;
 
 	// not ready to play yet
@@ -492,27 +491,17 @@ static void buffer_push_packet(rtp_t *ctx) {
 	do {
 
 		curframe = ctx->audio_buffer + BUFIDX(ctx->ab_read);
-		playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp)) * 1000) / 44100;
+		playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp)) * 10) / 441;
 
-		/*
-		if (now > playtime + ctx->frame_duration) {
-			//LOG_INFO("[%p]: discarded frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
+		if (now > playtime) {
+			LOG_DEBUG("[%p]: discarded frame now:%u missed by %d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
+			ctx->discarded++;
 		} else if (curframe->ready) {
-			ctx->callback((const u8_t*) curframe->data, curframe->len);
+			ctx->data_cb((const u8_t*) curframe->data, curframe->len);
 			curframe->ready = 0;
-		} else if (now >= playtime) {
+		} else if (playtime - now <= hold) {
 			LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
-			ctx->callback(silence_frame, ctx->frame_size * 4);
-			ctx->silent_frames++;
-		} else break;
-		*/
-
-		if (curframe->ready) {
-			ctx->callback((const u8_t*) curframe->data, curframe->len);
-			curframe->ready = 0;
-		} else if (now >= playtime) {
-			LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
-			ctx->callback(silence_frame, ctx->frame_size * 4);
+			ctx->data_cb(silence_frame, ctx->frame_size * 4);
 			ctx->silent_frames++;
 		} else break;
 
@@ -522,16 +511,16 @@ static void buffer_push_packet(rtp_t *ctx) {
 	} while (ctx->ab_write - ctx->ab_read + 1 > 0);
 
 	if (ctx->out_frames > 1000) {
-		LOG_INFO("[%p]: drain [level:%hd gap:%d] [W:%hu R:%hu] [R:%u S:%u F:%u]",
+		LOG_INFO("[%p]: drain [level:%hd gap:%d] [W:%hu R:%hu] [R:%u S:%u F:%u D:%u] (head in %u ms) ",
 				ctx, ctx->ab_write - ctx->ab_read, playtime - now, ctx->ab_write, ctx->ab_read,
-				ctx->resent_frames, ctx->silent_frames, ctx->filled_frames);
+				ctx->resent_req, ctx->silent_frames, ctx->filled_frames, ctx->discarded, playtime - now);
 		ctx->out_frames = 0;
 	}
 
 	LOG_SDEBUG("playtime %u %d [W:%hu R:%hu] %d", playtime, playtime - now, ctx->ab_write, ctx->ab_read, curframe->ready);
 
 	// each missing packet will be requested up to (latency_frames / 16) times
-	for (i = 16; seq_order(ctx->ab_read + i, ctx->ab_write); i += 16) {
+	for (i = 1; seq_order(ctx->ab_read + i, ctx->ab_write); i += 16) {
 		abuf_t *frame = ctx->audio_buffer + BUFIDX(ctx->ab_read + i);
 		if (!frame->ready && now - frame->last_resend > RESEND_TO) {
 			rtp_request_resend(ctx, ctx->ab_read + i, ctx->ab_read + i);
@@ -626,8 +615,8 @@ static void *rtp_thread_func(void *arg) {
 
 				pthread_mutex_lock(&ctx->ab_mutex);
 
-				// re-align timestamp and expected local playback time
-				if (!ctx->latency) ctx->latency = rtp_now - rtp_now_latency;
+				// re-align timestamp and expected local playback time (and magic 11025 latency)
+				if (!ctx->latency) ctx->latency = rtp_now - rtp_now_latency + 11025;
 				ctx->synchro.rtp = rtp_now - ctx->latency;
 				ctx->synchro.time = ctx->timing.local + (u32_t) NTP2MS(remote - ctx->timing.remote);
 
@@ -636,7 +625,6 @@ static void *rtp_thread_func(void *arg) {
 
 				// 1st sync packet received (signals a restart of playback)
 				if (packet[0] & 0x10) {
-					ctx->synchro.first = true;
 					LOG_INFO("[%p]: 1st sync packet received", ctx);
 				}
 
@@ -656,7 +644,6 @@ static void *rtp_thread_func(void *arg) {
 			// NTP timing packet
 			case 0x53: {
 				u64_t expected;
-				s64_t delta = 0;
 				u32_t reference   = ntohl(*(u32_t*)(pktp+12)); // only low 32 bits in our case
 				u64_t remote 	  =(((u64_t) ntohl(*(u32_t*)(pktp+16))) << 32) + ntohl(*(u32_t*)(pktp+20));
 				u32_t roundtrip   = gettime_ms() - reference;
@@ -676,50 +663,17 @@ static void *rtp_thread_func(void *arg) {
 
 				ctx->timing.remote = remote;
 				ctx->timing.local = reference;
-				ctx->timing.count++;
 
-				if (!ctx->timing.drift && (ctx->synchro.status & NTP_SYNC)) {
-					delta = NTP2MS((s64_t) expected - (s64_t) ctx->timing.remote);
-					ctx->timing.gap_sum += delta;
-
-					pthread_mutex_lock(&ctx->ab_mutex);
-
-					/*
-					 if expected time is more than remote, then our time is
-					 running faster and we are transmitting frames too quickly,
-					 so we'll run out of frames, need to add one
-					*/
-					if (ctx->timing.gap_sum > GAP_THRES && ctx->timing.gap_count++ > GAP_COUNT) {
-						LOG_INFO("[%p]: Sending packets too fast %Ld [W:%hu R:%hu]", ctx, ctx->timing.gap_sum, ctx->ab_write, ctx->ab_read);
-						ctx->ab_read--;
-						ctx->audio_buffer[BUFIDX(ctx->ab_read)].ready = 1;
-						ctx->timing.gap_sum -= GAP_THRES;
-						ctx->timing.gap_adjust -= GAP_THRES;
-					/*
-					 if expected time is less than remote, then our time is
-					 running slower and we are transmitting frames too slowly,
-					 so we'll overflow frames buffer, need to remove one
-					*/
-					} else if (ctx->timing.gap_sum < -GAP_THRES && ctx->timing.gap_count++ > GAP_COUNT) {
-						if (seq_order(ctx->ab_read, ctx->ab_write + 1)) {
-							ctx->audio_buffer[BUFIDX(ctx->ab_read)].ready = 0;
-							ctx->ab_read++;
-						} else ctx->skip++;
-						ctx->timing.gap_sum += GAP_THRES;
-						ctx->timing.gap_adjust += GAP_THRES;
-						LOG_INFO("[%p]: Sending packets too slow %Ld (skip: %d)  [W:%hu R:%hu]", ctx, ctx->timing.gap_sum, ctx->skip, ctx->ab_write, ctx->ab_read);
-					}
-
-					if (llabs(ctx->timing.gap_sum) < 8) ctx->timing.gap_count = 0;
-
-					pthread_mutex_unlock(&ctx->ab_mutex);
+				if (ctx->synchro.status & NTP_SYNC) {
+					s32_t delta = NTP2MS((s64_t) expected - (s64_t) ctx->timing.remote);
+					ctx->cmd_cb(RAOP_TIMING, &delta);
 				}
 
 				// now we are synced on NTP (mutex not needed)
 				ctx->synchro.status |= NTP_SYNC;
 
 				LOG_DEBUG("[%p]: Timing references local:%Lu, remote:%Lx (delta:%Ld, sum:%Ld, adjust:%Ld, gaps:%d)",
-						  ctx, ctx->timing.local, ctx->timing.remote, delta, ctx->timing.gap_sum, ctx->timing.gap_adjust, ctx->timing.gap_count);
+						  ctx, ctx->timing.local, ctx->timing.remote);
 
 				break;
 			}
@@ -778,7 +732,7 @@ static bool rtp_request_resend(rtp_t *ctx, seq_t first, seq_t last) {
 	// do not request silly ranges (happens in case of network large blackouts)
 	if (seq_order(last, first) || last - first > BUFFER_FRAMES / 2) return false;
 
-	ctx->resent_frames += last - first + 1;
+	ctx->resent_req += last - first + 1;
 
 	LOG_DEBUG("resend request [W:%hu R:%hu first=%hu last=%hu]", ctx->ab_write, ctx->ab_read, first, last);
 
@@ -796,100 +750,4 @@ static bool rtp_request_resend(rtp_t *ctx, seq_t first, seq_t last) {
 
 	return true;
 }
-
-
-#if 0
-/*---------------------------------------------------------------------------*/
-// get the next frame, when available. return 0 if underrun/stream reset.
-static short *_buffer_get_frame(rtp_t *ctx, int *len) {
-	short buf_fill;
-	abuf_t *curframe = 0;
-	int i;
-	u32_t now, playtime;
-
-	if (!ctx->playing) return NULL;
-
-	// skip frames if we are running late and skip could not be done in SYNC
-	while (ctx->skip && seq_order(ctx->ab_read, ctx->ab_write + 1)) {
-		ctx->audio_buffer[BUFIDX(ctx->ab_read)].ready = 0;
-		ctx->ab_read++;
-		ctx->skip--;
-		LOG_INFO("[%p]: Sending packets too slow (skip: %d) [W:%hu R:%hu]", ctx, ctx->skip, ctx->ab_write, ctx->ab_read);
-	}
-
-	buf_fill = ctx->ab_write - ctx->ab_read + 1;
-
-	if (buf_fill >= BUFFER_FRAMES) {
-		LOG_ERROR("[%p]: Buffer overrun %hu", ctx, buf_fill);
-		ctx->ab_read = ctx->ab_write - (BUFFER_FRAMES - 64);
-		buf_fill = ctx->ab_write - ctx->ab_read + 1;
-	}
-
-	now = gettime_ms();
-	curframe = ctx->audio_buffer + BUFIDX(ctx->ab_read);
-
-	// use next frame when buffer is empty or silence continues to be sent
-	if (!buf_fill) curframe->rtptime = ctx->audio_buffer[BUFIDX(ctx->ab_read - 1)].rtptime + ctx->frame_size;
-
-	playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp))*1000)/44100;
-
-	LOG_SDEBUG("playtime %u %d [W:%hu R:%hu] %d", playtime, playtime - now, ctx->ab_write, ctx->ab_read, curframe->ready);
-
-	// wait if not ready but have time, otherwise send silence
-	if (!buf_fill || ctx->synchro.status != (RTP_SYNC | NTP_SYNC) || (now < playtime && !curframe->ready)) {
-		LOG_SDEBUG("[%p]: waiting (fill:%hd, W:%hu R:%hu) now:%u, playtime:%u, wait:%d", ctx, buf_fill, ctx->ab_write, ctx->ab_read, now, playtime, playtime - now);
-		// look for "blocking" frames at the top of the queue and try to catch-up
-		for (i = 0; i < min(16, buf_fill); i++) {
-			abuf_t *frame = ctx->audio_buffer + BUFIDX(ctx->ab_read + i);
-			if (!frame->ready && now - frame->last_resend > RESEND_TO) {
-				rtp_request_resend(ctx, ctx->ab_read + i, ctx->ab_read + i);
-				frame->last_resend = now;
-			}
-		}
-		return NULL;
-	}
-
-	// when silence is inserted at the top, need to move write pointer
-	if (!buf_fill) {
-		if (!ctx->filled_frames) {
-			LOG_WARN("[%p]: start silence (late %d ms) [W:%hu R:%hu]", ctx, now - playtime, ctx->ab_write, ctx->ab_read);
-		}
-		ctx->ab_write++;
-		ctx->filled_frames++;
-	} else ctx->filled_frames = 0;
-
-	if (!(ctx->out_frames++ & 0x1ff)) {
-		LOG_INFO("[%p]: drain [level:%hd gap:%d] [W:%hu R:%hu] [R:%u S:%u F:%u]",
-					ctx, buf_fill-1, playtime - now, ctx->ab_write, ctx->ab_read,
-					ctx->resent_frames, ctx->silent_frames, ctx->filled_frames);
-	}
-
-	// each missing packet will be requested up to (latency_frames / 16) times
-	for (i = 16; seq_order(ctx->ab_read + i, ctx->ab_write); i += 16) {
-		abuf_t *frame = ctx->audio_buffer + BUFIDX(ctx->ab_read + i);
-		if (!frame->ready && now - frame->last_resend > RESEND_TO) {
-			rtp_request_resend(ctx, ctx->ab_read + i, ctx->ab_read + i);
-			frame->last_resend = now;
-		}
-	}
-
-	if (!curframe->ready) {
-		LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
-		memset(curframe->data, 0, ctx->frame_size*4);
-		curframe->len = ctx->frame_size * 4;
-		ctx->silent_frames++;
-	} else {
-		LOG_SDEBUG("[%p]: prepared frame (fill:%hd, W:%hu R:%hu)", ctx, buf_fill-1, ctx->ab_write, ctx->ab_read);
-	}
-
-	*len = curframe->len;
-	curframe->ready = 0;
-	ctx->ab_read++;
-
-	return curframe->data;
-}
-#endif
-
-
-
 

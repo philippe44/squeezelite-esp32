@@ -42,7 +42,7 @@ void raop_sink_init(raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb) {
 	tcpip_adapter_get_hostname(TCPIP_ADAPTER_IF_STA, &hostname);
 	host.s_addr = ipInfo.ip.addr;
 
-    //initialize mDNS
+    // initialize mDNS
     ESP_ERROR_CHECK( mdns_init() );
     ESP_ERROR_CHECK( mdns_hostname_set(hostname) );
         
@@ -54,10 +54,10 @@ void raop_sink_init(raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb) {
 	
 	ESP_LOGI(TAG, "mdns hostname set to: [%s] with servicename %s", hostname, sink_name);
 
-    //initialize service
+    // create RAOP instance, latency is set by controller
 	uint8_t mac[6];	
     esp_read_mac(mac, ESP_MAC_WIFI_STA);
-	raop = raop_create(host, sink_name, mac, 44100, cmd_cb, data_cb);
+	raop = raop_create(host, sink_name, mac, 0, cmd_cb, data_cb);
 }
 
 /****************************************************************************************
