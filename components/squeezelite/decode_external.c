@@ -168,7 +168,7 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			raop_sync.msplayed = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / 44100;
 			error = raop_sync.msplayed - (now - raop_sync.start_time);
 		
-			LOG_INFO("backend played %u, desired %u, (back:%d raop:%d)", raop_sync.msplayed, now - raop_sync.start_time, error, raop_sync.total / raop_sync.count);
+			LOG_INFO("backend played %u, desired %u, (delta:%d raop:%d)", raop_sync.msplayed, now - raop_sync.start_time, error, raop_sync.total / raop_sync.count);
 			
 			if (error < -10) {
 				output.skip_frames = (abs(error) * 44100) / 1000;
@@ -194,6 +194,7 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			LOG_INFO("Stop", NULL);
 			output.external = false;
 			output.state = OUTPUT_OFF;
+			output.frames_played = 0;
 			raop_state = event;
 			break;
 		case RAOP_FLUSH:
