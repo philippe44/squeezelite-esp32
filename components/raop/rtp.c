@@ -103,8 +103,8 @@ typedef struct rtp_s {
 #endif
 	bool decrypt;
 	u8_t *decrypt_buf;
-	int frame_size, frame_duration;
-	int in_frames, out_frames;
+	u32_t frame_size, frame_duration;
+	u32_t in_frames, out_frames;
 	struct in_addr host;
 	struct sockaddr_in rtp_host;
 	struct {
@@ -128,7 +128,6 @@ typedef struct rtp_s {
 	u32_t silent_frames;	// total silence frames
 	u32_t filled_frames;    // silence frames in current silence episode
 	u32_t discarded;
-	int skip;				// number of frames to skip to keep sync alignement
 	abuf_t audio_buffer[BUFFER_FRAMES];
 	seq_t ab_read, ab_write;
 	pthread_mutex_t ab_mutex;
@@ -402,7 +401,6 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 		   (ctx->synchro.status & RTP_SYNC && ctx->synchro.status & NTP_SYNC)) {
 			ctx->ab_write = seqno-1;
 			ctx->ab_read = seqno;
-			ctx->skip = 0;
 			ctx->flush_seqno = -1;
 			ctx->playing = true;
 			ctx->resent_req = ctx->resent_rec = ctx->silent_frames = ctx->discarded = 0;
@@ -494,7 +492,7 @@ static void buffer_push_packet(rtp_t *ctx) {
 		playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp)) * 10) / 441;
 
 		if (now > playtime) {
-			LOG_DEBUG("[%p]: discarded frame now:%u missed by %d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
+			LOG_INFO("[%p]: discarded frame now:%u missed by %d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
 			ctx->discarded++;
 		} else if (curframe->ready) {
 			ctx->data_cb((const u8_t*) curframe->data, curframe->len);
