@@ -70,7 +70,7 @@
 //#define __RTP_STORE
 
 // default buffer size
-#define BUFFER_FRAMES ( (120 * 88200) / (352 * 100) )
+#define BUFFER_FRAMES ( (150 * 88200) / (352 * 100) )
 #define MAX_PACKET    1408
 
 #define RTP_SYNC	(0x01)
@@ -126,7 +126,6 @@ typedef struct rtp_s {
 	int latency;			// rtp hold depth in samples
 	u32_t resent_req, resent_rec;	// total resent + recovered frames
 	u32_t silent_frames;	// total silence frames
-	u32_t filled_frames;    // silence frames in current silence episode
 	u32_t discarded;
 	abuf_t audio_buffer[BUFFER_FRAMES];
 	seq_t ab_read, ab_write;
@@ -141,7 +140,6 @@ typedef struct rtp_s {
 	bool playing;
 	raop_data_cb_t data_cb;
 	raop_cmd_cb_t cmd_cb;
-u16_t syncS, syncN;
 } rtp_t;
 
 
@@ -239,7 +237,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 	while ((arg = strsep(&fmtpstr, " \t")) != NULL) fmtp[i++] = atoi(arg);
 
 	ctx->frame_size = fmtp[1];
-	ctx->frame_duration = (ctx->frame_size * 1000) / 44100;
+	ctx->frame_duration = (ctx->frame_size * 1000) / RAOP_SAMPLE_RATE;
 
 	// alac decoder
 	ctx->alac_codec = alac_init(fmtp);
@@ -461,13 +459,13 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 		abuf->ready = 1;
 		// this is the local rtptime when this frame is expected to play
 		abuf->rtptime = rtptime;
+		buffer_push_packet(ctx);
+
 #ifdef __RTP_STORE
 		fwrite(data, len, 1, ctx->rtpIN);
 		fwrite(abuf->data, abuf->len, 1, ctx->rtpOUT);
 #endif
 	}
-
-	buffer_push_packet(ctx);
 
 	pthread_mutex_unlock(&ctx->ab_mutex);
 }
@@ -476,7 +474,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 // push as many frames as possible through callback
 static void buffer_push_packet(rtp_t *ctx) {
 	abuf_t *curframe = NULL;
-	u32_t now, playtime, hold = max((ctx->latency * 1000) / (8 * 44100), 100);
+	u32_t now, playtime, hold = max((ctx->latency * 1000) / (8 * RAOP_SAMPLE_RATE), 100);
 	int i;
 
 	// not ready to play yet
@@ -489,10 +487,10 @@ static void buffer_push_packet(rtp_t *ctx) {
 	do {
 
 		curframe = ctx->audio_buffer + BUFIDX(ctx->ab_read);
-		playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp)) * 10) / 441;
+		playtime = ctx->synchro.time + (((s32_t)(curframe->rtptime - ctx->synchro.rtp)) * 1000) / RAOP_SAMPLE_RATE;
 
 		if (now > playtime) {
-			LOG_INFO("[%p]: discarded frame now:%u missed by %d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
+			LOG_DEBUG("[%p]: discarded frame now:%u missed by:%d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
 			ctx->discarded++;
 		} else if (curframe->ready) {
 			ctx->data_cb((const u8_t*) curframe->data, curframe->len);
@@ -506,12 +504,13 @@ static void buffer_push_packet(rtp_t *ctx) {
 		ctx->ab_read++;
 		ctx->out_frames++;
 
-	} while (ctx->ab_write - ctx->ab_read + 1 > 0);
+	// need to be promoted to a signed int *before* addition
+	} while ((s16_t) (ctx->ab_write - ctx->ab_read) + 1 > 0);
 
 	if (ctx->out_frames > 1000) {
-		LOG_INFO("[%p]: drain [level:%hd gap:%d] [W:%hu R:%hu] [R:%u S:%u F:%u D:%u] (head in %u ms) ",
+		LOG_INFO("[%p]: drain [level:%hd head:%d ms] [W:%hu R:%hu] [req:%u sil:%u dis:%u]",
 				ctx, ctx->ab_write - ctx->ab_read, playtime - now, ctx->ab_write, ctx->ab_read,
-				ctx->resent_req, ctx->silent_frames, ctx->filled_frames, ctx->discarded, playtime - now);
+				ctx->resent_req, ctx->silent_frames, ctx->discarded);
 		ctx->out_frames = 0;
 	}
 
@@ -614,7 +613,7 @@ static void *rtp_thread_func(void *arg) {
 				pthread_mutex_lock(&ctx->ab_mutex);
 
 				// re-align timestamp and expected local playback time (and magic 11025 latency)
-				if (!ctx->latency) ctx->latency = rtp_now - rtp_now_latency + 11025;
+				ctx->latency = rtp_now - rtp_now_latency + 11025;
 				ctx->synchro.rtp = rtp_now - ctx->latency;
 				ctx->synchro.time = ctx->timing.local + (u32_t) NTP2MS(remote - ctx->timing.remote);
 
@@ -628,8 +627,8 @@ static void *rtp_thread_func(void *arg) {
 
 				pthread_mutex_unlock(&ctx->ab_mutex);
 
-				LOG_DEBUG("[%p]: sync packet rtp_latency:%u rtp:%u remote ntp:%Lx, local time %u (now:%u)",
-						  ctx, rtp_now_latency, rtp_now, remote, ctx->synchro.time, gettime_ms());
+				LOG_DEBUG("[%p]: sync packet latency:%d rtp_latency:%u rtp:%u remote ntp:%llx, local time:%u local rtp:%u (now:%u)",
+						  ctx, ctx->latency, rtp_now_latency, rtp_now, remote, ctx->synchro.time, ctx->synchro.rtp, gettime_ms());
 
 				if (!count--) {
 					rtp_request_timing(ctx);
@@ -670,7 +669,7 @@ static void *rtp_thread_func(void *arg) {
 				// now we are synced on NTP (mutex not needed)
 				ctx->synchro.status |= NTP_SYNC;
 
-				LOG_DEBUG("[%p]: Timing references local:%Lu, remote:%Lx (delta:%Ld, sum:%Ld, adjust:%Ld, gaps:%d)",
+				LOG_DEBUG("[%p]: Timing references local:%llu, remote:%llx (delta:%lld, sum:%lld, adjust:%lld, gaps:%d)",
 						  ctx, ctx->timing.local, ctx->timing.remote);
 
 				break;

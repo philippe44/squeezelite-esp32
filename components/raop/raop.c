@@ -459,6 +459,9 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 		rtp_resp_t rtp = { 0 };
 		short unsigned tport = 0, cport = 0;
 
+		// we are about to stream, do something if needed
+		ctx->cmd_cb(RAOP_SETUP, NULL);
+
 		if ((p = strcasestr(buf, "timing_port")) != NULL) sscanf(p, "%*[^=]=%hu", &tport);
 		if ((p = strcasestr(buf, "control_port")) != NULL) sscanf(p, "%*[^=]=%hu", &cport);
 

@@ -656,6 +656,7 @@ struct outputstate {
 	output_format format;
 	const char *device;
 	bool external;
+	u32_t init_size;
 #if ALSA
 	unsigned buffer;
 	unsigned period;

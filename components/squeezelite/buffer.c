@@ -83,6 +83,7 @@ void buf_adjust(struct buffer *buf, size_t mod) {
 
 // called with mutex locked to resize, does not retain contents, reverts to original size if fails
 void _buf_resize(struct buffer *buf, size_t size) {
+	if (size == buf->size) return;
 	free(buf->buf);
 	buf->buf = malloc(size);
 	if (!buf->buf) {

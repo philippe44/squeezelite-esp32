@@ -34,6 +34,8 @@ extern struct buffer *outputbuf;
 // this is the only system-wide loglevel variable
 extern log_level loglevel;
 
+#define RAOP_OUTPUT_SIZE (RAOP_SAMPLE_RATE * 2 * 2 * 2 * 1.2)
+
 static raop_event_t	raop_state;
 static bool raop_expect_stop = false;
 static struct {
@@ -165,29 +167,34 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			
 			raop_sync.total += *(s32_t*) param;
 			raop_sync.count++;
-			raop_sync.msplayed = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / 44100;
+			raop_sync.msplayed = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / RAOP_SAMPLE_RATE;
 			error = raop_sync.msplayed - (now - raop_sync.start_time);
-		
+			
+			LOG_INFO("now:%u updated:%u played_dmp:%u device:%u", now, output.updated, output.frames_played_dmp, output.device_frames);
 			LOG_INFO("backend played %u, desired %u, (delta:%d raop:%d)", raop_sync.msplayed, now - raop_sync.start_time, error, raop_sync.total / raop_sync.count);
 			
 			if (error < -10) {
-				output.skip_frames = (abs(error) * 44100) / 1000;
+				output.skip_frames = (abs(error) * RAOP_SAMPLE_RATE) / 1000;
 				output.state = OUTPUT_SKIP_FRAMES;					
 				LOG_INFO("skipping %u frames", output.skip_frames);
 			} else if (error > 10) {
-				output.pause_frames = (abs(error) * 44100) / 1000;
+				output.pause_frames = (abs(error) * RAOP_SAMPLE_RATE) / 1000;
 				output.state = OUTPUT_PAUSE_FRAMES;
 				LOG_INFO("pausing for %u frames", output.pause_frames);
 			}
 						
 			break;
 		}
+		case RAOP_SETUP:
+			_buf_resize(outputbuf, RAOP_OUTPUT_SIZE);
+			LOG_INFO("resizing buffer %u", outputbuf->size);
+			break;
 		case RAOP_STREAM:
 			LOG_INFO("Stream", NULL);
 			raop_state = event;
 			raop_sync.total = raop_sync.count = 0;			
 			output.external = true;
-			output.next_sample_rate = 44100;
+			output.next_sample_rate = RAOP_SAMPLE_RATE;
 			output.state = OUTPUT_STOPPED;
 			break;
 		case RAOP_STOP:

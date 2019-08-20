@@ -11,7 +11,9 @@
 
 #include <stdint.h>
 
-typedef enum { RAOP_STREAM, RAOP_PLAY, RAOP_FLUSH, RAOP_PAUSE, RAOP_STOP, RAOP_VOLUME, RAOP_TIMING } raop_event_t ;
+#define RAOP_SAMPLE_RATE	44100
+
+typedef enum { RAOP_SETUP, RAOP_STREAM, RAOP_PLAY, RAOP_FLUSH, RAOP_PAUSE, RAOP_STOP, RAOP_VOLUME, RAOP_TIMING } raop_event_t ;
 
 typedef void (*raop_cmd_cb_t)(raop_event_t event, void *param);
 typedef void (*raop_data_cb_t)(const u8_t *data, size_t len);
