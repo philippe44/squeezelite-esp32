@@ -371,10 +371,8 @@ static void process_strm(u8_t *pkt, int len) {
 			sendSTAT("STMc", 0);
 			sentSTMu = sentSTMo = sentSTMl = false;
 			LOCK_O;
-			if (output.external) {
-				output.external = false;
-				_buf_resize(outputbuf, output.init_size);
-			}	
+			output.external = false;
+			_buf_resize(outputbuf, output.init_size);
 			output.threshold = strm->output_threshold;
 			output.next_replay_gain = unpackN(&strm->replay_gain);
 			output.fade_mode = strm->transition_type - '0';
