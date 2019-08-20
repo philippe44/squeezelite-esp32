@@ -70,8 +70,10 @@
 //#define __RTP_STORE
 
 // default buffer size
-#define BUFFER_FRAMES ( (150 * 88200) / (352 * 100) )
-#define MAX_PACKET    1408
+#define BUFFER_FRAMES 	( (150 * RAOP_SAMPLE_RATE * 2) / (352 * 100) )
+#define MAX_PACKET    	1408
+#define MIN_LATENCY		11025
+#define MAX_LATENCY   	( (120 * RAOP_SAMPLE_RATE * 2) / 100 )
 
 #define RTP_SYNC	(0x01)
 #define NTP_SYNC	(0x02)
@@ -396,13 +398,13 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 
 	if (!ctx->playing) {
 		if ((ctx->flush_seqno == -1 || seq_order(ctx->flush_seqno, seqno)) &&
-		   (ctx->synchro.status & RTP_SYNC && ctx->synchro.status & NTP_SYNC)) {
+		   (ctx->synchro.status & (RTP_SYNC | NTP_SYNC))) {
 			ctx->ab_write = seqno-1;
 			ctx->ab_read = seqno;
 			ctx->flush_seqno = -1;
 			ctx->playing = true;
 			ctx->resent_req = ctx->resent_rec = ctx->silent_frames = ctx->discarded = 0;
-			playtime = ctx->synchro.time + (((s32_t)(rtptime - ctx->synchro.rtp)) * 10) / 441;
+			playtime = ctx->synchro.time + (((s32_t)(rtptime - ctx->synchro.rtp)) * 1000) / RAOP_SAMPLE_RATE;
 			ctx->cmd_cb(RAOP_PLAY, &playtime);
 		} else {
 			pthread_mutex_unlock(&ctx->ab_mutex);
@@ -493,11 +495,11 @@ static void buffer_push_packet(rtp_t *ctx) {
 			LOG_DEBUG("[%p]: discarded frame now:%u missed by:%d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
 			ctx->discarded++;
 		} else if (curframe->ready) {
-			ctx->data_cb((const u8_t*) curframe->data, curframe->len);
+			ctx->data_cb((const u8_t*) curframe->data, curframe->len, playtime);
 			curframe->ready = 0;
 		} else if (playtime - now <= hold) {
 			LOG_DEBUG("[%p]: created zero frame (W:%hu R:%hu)", ctx, ctx->ab_write, ctx->ab_read);
-			ctx->data_cb(silence_frame, ctx->frame_size * 4);
+			ctx->data_cb(silence_frame, ctx->frame_size * 4, playtime);
 			ctx->silent_frames++;
 		} else break;
 
@@ -609,11 +611,15 @@ static void *rtp_thread_func(void *arg) {
 				u32_t rtp_now_latency = ntohl(*(u32_t*)(pktp+4));
 				u64_t remote = (((u64_t) ntohl(*(u32_t*)(pktp+8))) << 32) + ntohl(*(u32_t*)(pktp+12));
 				u32_t rtp_now = ntohl(*(u32_t*)(pktp+16));
+				u16_t flags = ntohs(*(u16_t*)(pktp+2));
 
 				pthread_mutex_lock(&ctx->ab_mutex);
 
 				// re-align timestamp and expected local playback time (and magic 11025 latency)
-				ctx->latency = rtp_now - rtp_now_latency + 11025;
+				ctx->latency = rtp_now - rtp_now_latency;
+				if (flags == 7 || flags == 4) ctx->latency += 11025;
+				if (ctx->latency < MIN_LATENCY) ctx->latency = MIN_LATENCY;
+				else if (ctx->latency > MAX_LATENCY) ctx->latency = MAX_LATENCY;
 				ctx->synchro.rtp = rtp_now - ctx->latency;
 				ctx->synchro.time = ctx->timing.local + (u32_t) NTP2MS(remote - ctx->timing.remote);
 
@@ -634,6 +640,8 @@ static void *rtp_thread_func(void *arg) {
 					rtp_request_timing(ctx);
 					count = 3;
 				}
+
+				if (ctx->synchro.status & (NTP_SYNC | RTP_SYNC)) ctx->cmd_cb(RAOP_TIMING, NULL);
 
 				break;
 			}
@@ -660,11 +668,6 @@ static void *rtp_thread_func(void *arg) {
 
 				ctx->timing.remote = remote;
 				ctx->timing.local = reference;
-
-				if (ctx->synchro.status & NTP_SYNC) {
-					s32_t delta = NTP2MS((s64_t) expected - (s64_t) ctx->timing.remote);
-					ctx->cmd_cb(RAOP_TIMING, &delta);
-				}
 
 				// now we are synced on NTP (mutex not needed)
 				ctx->synchro.status |= NTP_SYNC;

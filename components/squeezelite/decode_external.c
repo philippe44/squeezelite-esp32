@@ -39,8 +39,10 @@ extern log_level loglevel;
 static raop_event_t	raop_state;
 static bool raop_expect_stop = false;
 static struct {
-	s32_t total, count;
-	u32_t start_time, msplayed;
+	bool start;
+	s32_t error;
+	u32_t start_time;
+	u32_t playtime, len;
 } raop_sync;
 
 /****************************************************************************************
@@ -143,6 +145,17 @@ static void bt_sink_cmd_handler(bt_sink_cmd_t cmd, ...)
 }
 
 /****************************************************************************************
+ * raop sink data handler
+ */
+static void raop_sink_data_handler(const uint8_t *data, uint32_t len, u32_t playtime) {
+	
+	raop_sync.playtime = playtime;
+	raop_sync.len = len;
+	
+	sink_data_handler(data, len);
+}	
+
+/****************************************************************************************
  * AirPlay sink command handler
  */
 void raop_sink_cmd_handler(raop_event_t event, void *param)
@@ -160,28 +173,39 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 	// this is async, so player might have been deleted
 	switch (event) {
 		case RAOP_TIMING: {
-			u32_t now = gettime_ms();
+			u32_t ms, now = gettime_ms();
 			s32_t error;
 			
 			if (output.state < OUTPUT_RUNNING || output.frames_played_dmp < output.device_frames) break;
 			
-			raop_sync.total += *(s32_t*) param;
-			raop_sync.count++;
-			raop_sync.msplayed = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / RAOP_SAMPLE_RATE;
-			error = raop_sync.msplayed - (now - raop_sync.start_time);
+			// first must make sure we started on time
+			if (raop_sync.start) {
+				// how many ms have we really played
+				ms = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / RAOP_SAMPLE_RATE;
+				error = ms - (now - raop_sync.start_time); 
+				LOG_INFO("backend played %u, desired %u, (delta:%d)", ms, now - raop_sync.start_time, error);
+				if (abs(error) < 10 && abs(raop_sync.error) < 10) raop_sync.start = false;
+			} else {	
+				// in how many ms will the most recent block play (there is one extra block of FRAME_BLOCK == MAX_SILENCE_FRAMES which is not in queue and not in outputbuf)
+				ms = ((u64_t) ((_buf_used(outputbuf) - raop_sync.len) / BYTES_PER_FRAME + output.device_frames + MAX_SILENCE_FRAMES) * 1000) / RAOP_SAMPLE_RATE - (now - output.updated);
+				error = (raop_sync.playtime - now) - ms;
+				LOG_INFO("head local:%u, remote:%u (delta:%d)", ms, raop_sync.playtime - now, error);
+				//break;
+			}	
 			
-			LOG_INFO("now:%u updated:%u played_dmp:%u device:%u", now, output.updated, output.frames_played_dmp, output.device_frames);
-			LOG_INFO("backend played %u, desired %u, (delta:%d raop:%d)", raop_sync.msplayed, now - raop_sync.start_time, error, raop_sync.total / raop_sync.count);
-			
-			if (error < -10) {
-				output.skip_frames = (abs(error) * RAOP_SAMPLE_RATE) / 1000;
+			if (error < -10 && raop_sync.error < -10) {
+				output.skip_frames = (abs(error + raop_sync.error) / 2 * RAOP_SAMPLE_RATE) / 1000;
 				output.state = OUTPUT_SKIP_FRAMES;					
+				raop_sync.error = 0;
 				LOG_INFO("skipping %u frames", output.skip_frames);
-			} else if (error > 10) {
-				output.pause_frames = (abs(error) * RAOP_SAMPLE_RATE) / 1000;
+			} else if (error > 10 && raop_sync.error > 10) {
+				output.pause_frames = (abs(error + raop_sync.error) / 2 * RAOP_SAMPLE_RATE) / 1000;
 				output.state = OUTPUT_PAUSE_FRAMES;
+				raop_sync.error = 0;
 				LOG_INFO("pausing for %u frames", output.pause_frames);
 			}
+			
+			raop_sync.error = error;
 						
 			break;
 		}
@@ -192,7 +216,8 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 		case RAOP_STREAM:
 			LOG_INFO("Stream", NULL);
 			raop_state = event;
-			raop_sync.total = raop_sync.count = 0;			
+			raop_sync.error = 0;
+			raop_sync.start = true;			
 			output.external = true;
 			output.next_sample_rate = RAOP_SAMPLE_RATE;
 			output.state = OUTPUT_STOPPED;
@@ -253,7 +278,7 @@ void register_other(void) {
 #endif	
 #ifdef CONFIG_AIRPLAY_SINK
 	if (!strcasestr(output.device, "BT ")) {
-		raop_sink_init(raop_sink_cmd_handler, sink_data_handler);
+		raop_sink_init(raop_sink_cmd_handler, raop_sink_data_handler);
 		LOG_INFO("Initializing AirPlay sink");		
 	} else {
 		LOG_WARN("Cannot be an AirPlay sink and BT source");
