@@ -442,6 +442,7 @@ static void *output_thread_i2s() {
 		// try to estimate how much we have consumed from the DMA buffer
 		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
 		oframes = _output_frames( iframes );
+		output.frames_in_process = oframes;
 				
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);

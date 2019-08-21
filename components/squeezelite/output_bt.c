@@ -150,6 +150,7 @@ int32_t output_bt_data(uint8_t *data, int32_t len) {
 	if (wanted_len > 0) {
 		SET_MIN_MAX(wanted_len, under);
 	}
+	output.frames_in_process = len-wanted_len;
 
 	UNLOCK;
 	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);

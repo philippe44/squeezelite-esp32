@@ -676,6 +676,7 @@ struct outputstate {
 	unsigned default_sample_rate;
 	bool error_opening;
 	unsigned device_frames;
+	unsigned frames_in_process;
 	u32_t updated;
 	u32_t track_start_time;
 	u32_t current_replay_gain;
