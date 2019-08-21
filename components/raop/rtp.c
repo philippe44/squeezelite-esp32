@@ -398,7 +398,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 
 	if (!ctx->playing) {
 		if ((ctx->flush_seqno == -1 || seq_order(ctx->flush_seqno, seqno)) &&
-		   (ctx->synchro.status & (RTP_SYNC | NTP_SYNC))) {
+		   (ctx->synchro.status & RTP_SYNC) && (ctx->synchro.status & NTP_SYNC)) {
 			ctx->ab_write = seqno-1;
 			ctx->ab_read = seqno;
 			ctx->flush_seqno = -1;
@@ -641,7 +641,7 @@ static void *rtp_thread_func(void *arg) {
 					count = 3;
 				}
 
-				if (ctx->synchro.status & (NTP_SYNC | RTP_SYNC)) ctx->cmd_cb(RAOP_TIMING, NULL);
+				if ((ctx->synchro.status & RTP_SYNC) && (ctx->synchro.status & NTP_SYNC)) ctx->cmd_cb(RAOP_TIMING, NULL);
 
 				break;
 			}

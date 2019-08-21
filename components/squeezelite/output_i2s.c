@@ -157,6 +157,8 @@ struct tas575x_cmd_s {
 	u8_t reg;
 	u8_t value;
 };
+
+u8_t config_spdif_gpio = CONFIG_SPDIF_DO_IO;
 	
 static const struct tas575x_cmd_s tas575x_init_sequence[] = {
     { 0x00, 0x00 },		// select page 0
