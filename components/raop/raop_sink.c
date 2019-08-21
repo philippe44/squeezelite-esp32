@@ -18,6 +18,10 @@
 
 #include "trace.h"
 
+#ifndef CONFIG_AIRPLAY_NAME
+#define CONFIG_AIRPLAY_NAME		"disabled"
+#endif
+
 static const char * TAG = "platform";
 extern char current_namespace[];
 

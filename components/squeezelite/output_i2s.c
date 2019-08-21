@@ -86,7 +86,7 @@ typedef enum { DAC_ON = 0, DAC_OFF, DAC_POWERDOWN, DAC_VOLUME } dac_cmd_e;
 
 // must have an integer ratio with FRAME_BLOCK
 #define DMA_BUF_LEN		512	
-#define DMA_BUF_COUNT	16
+#define DMA_BUF_COUNT	12
 
 #define DECLARE_ALL_MIN_MAX 	\
 	DECLARE_MIN_MAX(o); 		\
@@ -307,7 +307,7 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
 	pthread_create_name(&thread, &attr, output_thread_i2s, NULL, "output_i2s");
 	pthread_attr_destroy(&attr);
-
+	
 	// leave stack size to default 
 	pthread_create_name(&stats_thread, NULL, output_thread_i2s_stats, NULL, "output_i2s_sts");
 }
@@ -404,7 +404,7 @@ static void *output_thread_i2s() {
 	// spdif needs 16 bytes per frame : 32 bits/sample, 2 channels, BMC encoded
 	if (spdif && (sbuf = malloc(FRAME_BLOCK * 16)) == NULL) {
 		LOG_ERROR("Cannot allocate SPDIF buffer");
-	}	
+	}
 	
 	while (running) {
 			

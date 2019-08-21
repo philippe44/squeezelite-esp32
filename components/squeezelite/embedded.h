@@ -19,10 +19,10 @@
 #define PTHREAD_STACK_MIN	256
 #endif
 
-#define STREAM_THREAD_STACK_SIZE  8 * 1024
-#define DECODE_THREAD_STACK_SIZE 20 * 1024
-#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
-#define IR_THREAD_STACK_SIZE      8 * 1024
+#define STREAM_THREAD_STACK_SIZE  6 * 1024
+#define DECODE_THREAD_STACK_SIZE 16 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  6 * 1024
+#define IR_THREAD_STACK_SIZE      6 * 1024
 
 //#define BASE_CAP "Model=squeezelite,AccuratePlayPoints=0,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION	
 
