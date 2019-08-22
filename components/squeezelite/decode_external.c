@@ -61,8 +61,9 @@ static void sink_data_handler(const uint8_t *data, uint32_t len)
 	// there will always be room at some point
 	while (len) {
 		LOCK_O;
-		
-		bytes = min(len, _buf_cont_write(outputbuf));
+
+		bytes = min(_buf_space(outputbuf), _buf_cont_write(outputbuf));
+		bytes = min(len, bytes);
 #if BYTES_PER_FRAME == 4
 		memcpy(outputbuf->writep, data, bytes);
 #else
@@ -127,7 +128,7 @@ static void bt_sink_cmd_handler(bt_sink_cmd_t cmd, ...)
 		LOG_INFO("BT sink stopped");
 		break;
 	case BT_SINK_RATE:
-		output.next_sample_rate = va_arg(args, u32_t);
+		output.next_sample_rate = output.current_sample_rate = va_arg(args, u32_t);
 		LOG_INFO("Setting BT sample rate %u", output.next_sample_rate);
 		break;
 	case BT_SINK_VOLUME: {
@@ -151,7 +152,7 @@ static void raop_sink_data_handler(const uint8_t *data, uint32_t len, u32_t play
 	
 	raop_sync.playtime = playtime;
 	raop_sync.len = len;
-	
+
 	sink_data_handler(data, len);
 }	
 
@@ -186,7 +187,7 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 				LOG_INFO("backend played %u, desired %u, (delta:%d)", ms, now - raop_sync.start_time, error);
 				if (abs(error) < 10 && abs(raop_sync.error) < 10) raop_sync.start = false;
 			} else {	
-				// in how many ms will the most recent block play (there is one extra block of FRAME_BLOCK == MAX_SILENCE_FRAMES which is not in queue and not in outputbuf)
+				// in how many ms will the most recent block play 
 				ms = ((u64_t) ((_buf_used(outputbuf) - raop_sync.len) / BYTES_PER_FRAME + output.device_frames + output.frames_in_process) * 1000) / RAOP_SAMPLE_RATE - (now - output.updated);
 				error = (raop_sync.playtime - now) - ms;
 				LOG_INFO("head local:%u, remote:%u (delta:%d)", ms, raop_sync.playtime - now, error);
@@ -219,7 +220,7 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 			raop_sync.start = true;		
 			raop_sync.enabled = !strcasestr(output.device, "BT");
 			output.external = true;
-			output.next_sample_rate = RAOP_SAMPLE_RATE;
+			output.next_sample_rate = output.current_sample_rate = RAOP_SAMPLE_RATE;
 			output.state = OUTPUT_STOPPED;
 			break;
 		case RAOP_STOP:

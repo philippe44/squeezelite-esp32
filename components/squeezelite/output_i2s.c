@@ -84,7 +84,7 @@ sure that using rate_delay would fix that
 
 typedef enum { DAC_ON = 0, DAC_OFF, DAC_POWERDOWN, DAC_VOLUME } dac_cmd_e;
 
-// must have an integer ratio with FRAME_BLOCK
+// must have an integer ratio with FRAME_BLOCK (see spdif comment)
 #define DMA_BUF_LEN		512	
 #define DMA_BUF_COUNT	12
 
@@ -116,6 +116,7 @@ static int bytes_per_frame;
 static thread_type thread, stats_thread;
 static u8_t *obuf;
 static bool spdif;
+static size_t dma_buf_frames;
 
 DECLARE_ALL_MIN_MAX;
 
@@ -268,27 +269,37 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 									};
 		i2s_config.sample_rate = output.current_sample_rate * 2;
 		i2s_config.bits_per_sample = 32;
+		// Normally counted in frames, but 16 sample are transformed into 32 bits in spdif
+		i2s_config.dma_buf_len = DMA_BUF_LEN / 2;	
+		i2s_config.dma_buf_count = DMA_BUF_COUNT * 2;
+		/* 
+		   In DMA, we have room for (LEN * COUNT) frames of 32 bits samples that 
+		   we push at sample_rate * 2. Each of these peuso-frames is a single true
+		   audio frame. So the real depth is true frames is (LEN * COUNT / 2)
+		*/   
+		dma_buf_frames = DMA_BUF_COUNT * DMA_BUF_LEN / 2;	
 	} else {
 		pin_config = (i2s_pin_config_t) { .bck_io_num = CONFIG_I2S_BCK_IO, .ws_io_num = CONFIG_I2S_WS_IO, 
 										.data_out_num = CONFIG_I2S_DO_IO, .data_in_num = -1 //Not used
 									};
 		i2s_config.sample_rate = output.current_sample_rate;
 		i2s_config.bits_per_sample = bytes_per_frame * 8 / 2;
+		// Counted in frames (but i2s allocates a buffer <= 4092 bytes)
+		i2s_config.dma_buf_len = DMA_BUF_LEN;	
+		i2s_config.dma_buf_count = DMA_BUF_COUNT;
+		dma_buf_frames = DMA_BUF_COUNT * DMA_BUF_LEN;	
 #ifdef TAS575x	
 		gpio_pad_select_gpio(CONFIG_SPDIF_DO_IO);
 		gpio_set_direction(CONFIG_SPDIF_DO_IO, GPIO_MODE_OUTPUT);
 		gpio_set_level(CONFIG_SPDIF_DO_IO, 0);
 #endif			
 	}
-	
+
 	i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
 	i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
 	i2s_config.communication_format = I2S_COMM_FORMAT_I2S| I2S_COMM_FORMAT_I2S_MSB;
 	// in case of overflow, do not replay old buffer
 	i2s_config.tx_desc_auto_clear = true;		
-	i2s_config.dma_buf_count = DMA_BUF_COUNT;
-	// Counted in frames (but i2s allocates a buffer <= 4092 bytes)
-	i2s_config.dma_buf_len = DMA_BUF_LEN;
 	i2s_config.use_apll = true;
 	i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1; //Interrupt level 1
 
@@ -391,7 +402,6 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 	return out_frames;
 }
 
-
 /****************************************************************************************
  * Main output thread
  */
@@ -415,7 +425,7 @@ static void *output_thread_i2s() {
 		TIME_MEASUREMENT_START(timer_start);
 		
 		LOCK;
-		
+				
 		// manage led display
 		if (state != output.state) {
 			LOG_INFO("Output state is %d", output.state);
@@ -441,11 +451,11 @@ static void *output_thread_i2s() {
 		
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
-		// try to estimate how much we have consumed from the DMA buffer
-		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
+		// try to estimate how much we have consumed from the DMA buffer (calculation is incorrect at the very beginning ...)
+		output.device_frames = dma_buf_frames - ((output.updated - fullness) * output.current_sample_rate) / 1000;
 		oframes = _output_frames( iframes );
 		output.frames_in_process = oframes;
-				
+								
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
@@ -547,6 +557,11 @@ static void *output_thread_i2s_stats() {
 			LOG_INFO("              ----------+----------+-----------+-----------+");
 			RESET_ALL_MIN_MAX;
 		}
+		LOG_INFO("Heap internal:%zu (min:%zu) external:%zu (min:%zu)", 
+					heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+					heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+					heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
+					heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
 		usleep(STATS_PERIOD_MS *1000);
 	}
 	return NULL;
