@@ -267,7 +267,7 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 /****************************************************************************************
  * We provide the generic codec register option
  */
-void register_other(void) {
+void register_external(void) {
 #ifdef CONFIG_BT_SINK	
 	if (!strcasestr(output.device, "BT ")) {
 		bt_sink_init(bt_sink_cmd_handler, sink_data_handler);

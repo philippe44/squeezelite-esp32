@@ -308,10 +308,12 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	pthread_attr_init(&attr);
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
 	pthread_create_name(&thread, &attr, output_thread_i2s, NULL, "output_i2s");
-	pthread_attr_destroy(&attr);
-	
-	// leave stack size to default 
+		
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, 2048);
 	pthread_create_name(&stats_thread, NULL, output_thread_i2s_stats, NULL, "output_i2s_sts");
+	
+	pthread_attr_destroy(&attr);
 }
 
 
