@@ -104,8 +104,8 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 	struct sockaddr_in addr;
 	char id[64];
 #ifdef WIN32
-	socklen_t nlen = sizeof(struct sockaddr);
-	char *txt[] = { "am=esp32", "tp=UDP", "sm=false", "sv=false", "ek=1",
+	socklen_t nlen = sizeof(struct sockaddr);
+	char *txt[] = { "am=esp32", "tp=UDP", "sm=false", "sv=false", "ek=1",
 					"et=0,1", "md=0,1,2", "cn=0,1", "ch=2",
 					"ss=16", "sr=44100", "vn=3", "txtvers=1",
 					NULL };
@@ -167,21 +167,20 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 #ifdef WIN32
 	getsockname(ctx->sock, (struct sockaddr *) &addr, &nlen);
 	ctx->port = ntohs(addr.sin_port);
-#endif
-
+#endif
 	ctx->running = true;
 	memcpy(ctx->mac, mac, 6);
-	snprintf(id, 64, "%02X%02X%02X%02X%02X%02X@%s",  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], name);
+	snprintf(id, 64, "%02X%02X%02X%02X%02X%02X@%s",  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], name);
 #ifdef WIN32
-	// seems that Windows snprintf does not add NULL char if actual size > max
-	id[63] = '\0';
-	ctx->svc = mdnsd_register_svc(ctx->svr, id, "_raop._tcp.local", ctx->port, NULL, (const char**) txt);
-	pthread_create(&ctx->thread, NULL, &rtsp_thread, ctx);
+	// seems that Windows snprintf does not add NULL char if actual size > max
+	id[63] = '\0';
+	ctx->svc = mdnsd_register_svc(ctx->svr, id, "_raop._tcp.local", ctx->port, NULL, (const char**) txt);
+	pthread_create(&ctx->thread, NULL, &rtsp_thread, ctx);
 #else
-	LOG_INFO("starting mDNS with %s", id);
-	ESP_ERROR_CHECK( mdns_service_add(id, "_raop", "_tcp", ctx->port, txt, sizeof(txt) / sizeof(mdns_txt_item_t)) );
-	xTaskCreate((TaskFunction_t) rtsp_thread, "RTSP_thread", 8*1024, ctx, ESP_TASK_PRIO_MIN + 1, &ctx->thread);
-#endif
+	LOG_INFO("starting mDNS with %s", id);
+	ESP_ERROR_CHECK( mdns_service_add(id, "_raop", "_tcp", ctx->port, txt, sizeof(txt) / sizeof(mdns_txt_item_t)) );
+	xTaskCreate((TaskFunction_t) rtsp_thread, "RTSP_thread", 8*1024, ctx, ESP_TASK_PRIO_MIN + 1, &ctx->thread);
+#endif
 
 	return ctx;
 }
@@ -366,13 +365,13 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 	key_data_t headers[16], resp[8] = { {NULL, NULL} };
 	int len;
 	bool success = true;
-
+	
 	if (!http_parse(sock, method, headers, &body, &len)) {
 		NFREE(body);
 		kd_free(headers);
 		return false;
 	}
-
+	
 	if (strcmp(method, "OPTIONS")) {
 		LOG_INFO("[%p]: received %s", ctx, method);
 	}
@@ -402,7 +401,7 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 		NFREE(buf_pad);
 		NFREE(data_b64);
 	}
-
+	
 	if (!strcmp(method, "OPTIONS")) {
 
 		kd_add(resp, "Public", "ANNOUNCE, SETUP, RECORD, PAUSE, FLUSH, TEARDOWN, OPTIONS, GET_PARAMETER, SET_PARAMETER");
@@ -467,9 +466,9 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 
 		rtp = rtp_init(ctx->peer, ctx->latency,	ctx->rtsp.aeskey, ctx->rtsp.aesiv,
 					   ctx->rtsp.fmtp, cport, tport, ctx->cmd_cb, ctx->data_cb);
-
+						
 		ctx->rtp = rtp.ctx;
-
+		
 		if (cport * tport * rtp.cport * rtp.tport * rtp.aport && rtp.ctx) {
 			char *transport;
 			asprintf(&transport, "RTP/AVP/UDP;unicast;mode=record;control_port=%u;timing_port=%u;server_port=%u", rtp.cport, rtp.tport, rtp.aport);
@@ -672,7 +671,7 @@ static char *rsa_apply(unsigned char *input, int inlen, int *outlen, int mode)
 	mbedtls_pk_context pkctx;
 	mbedtls_rsa_context *trsa;
 	size_t olen;
-
+	
 	/*
 	we should do entropy initialization & pass a rng function but this
 	consumes a ton of stack and there is no security concern here. Anyway,

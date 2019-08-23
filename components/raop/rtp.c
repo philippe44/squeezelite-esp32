@@ -80,7 +80,7 @@
 
 #define RESEND_TO	200
 
-enum { DATA, CONTROL, TIMING };
+enum { DATA = 0, CONTROL, TIMING };
 
 static const u8_t silence_frame[MAX_PACKET] = { 0 };
 
@@ -159,7 +159,7 @@ static int	  	seq_order(seq_t a, seq_t b);
 static alac_file* alac_init(int fmtp[32]) {
 	alac_file *alac;
 	int sample_size = fmtp[3];
-
+	
 	if (sample_size != 16) {
 		LOG_ERROR("sample size must be 16 %d", sample_size);
 		return false;
@@ -257,7 +257,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 	resp.cport = ctx->rtp_sockets[CONTROL].lport;
 	resp.tport = ctx->rtp_sockets[TIMING].lport;
 	resp.aport = ctx->rtp_sockets[DATA].lport;
-
+	
 	if (rc) {
 		ctx->running = true;
 #ifdef WIN32
@@ -291,13 +291,14 @@ void rtp_end(rtp_t *ctx)
 		xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
 #endif
 	}
-
-	for (i = 0; i < 3; i++) shutdown_socket(ctx->rtp_sockets[i].sock);
+	for (i = 0; i < 3; i++) closesocket(ctx->rtp_sockets[i].sock);
 
 	delete_alac(ctx->alac_codec);
-
 	if (ctx->decrypt_buf) free(ctx->decrypt_buf);
+	
+	pthread_mutex_destroy(&ctx->ab_mutex);
 	buffer_release(ctx->audio_buffer);
+	
 	free(ctx);
 
 #ifdef __RTP_STORE
@@ -374,7 +375,7 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 	unsigned char iv[16];
 	int aeslen;
 	assert(len<=MAX_PACKET);
-
+	
 	if (ctx->decrypt) {
 		aeslen = len & ~0xf;
 		memcpy(iv, ctx->aesiv, sizeof(iv));

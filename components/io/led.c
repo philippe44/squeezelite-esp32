@@ -109,6 +109,7 @@ bool led_unconfig(int idx) {
 	if (idx >= MAX_LED) return false;	
 	
 	if (leds[idx].timer) xTimerDelete(leds[idx].timer, BLOCKTIME);
+	leds[idx].timer = NULL;
 	
 	return true;
 }
