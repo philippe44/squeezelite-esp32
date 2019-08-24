@@ -41,6 +41,7 @@ sure that using rate_delay would fix that
 */
 
 #include "squeezelite.h"
+#include "esp_pthread.h"
 #include "driver/i2s.h"
 #include "driver/i2c.h"
 #include "driver/gpio.h"
@@ -315,16 +316,20 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	
 	dac_cmd(DAC_OFF);
 	
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
-	pthread_create_name(&thread, &attr, output_thread_i2s, NULL, "output_i2s");
-		
-	pthread_attr_init(&attr);
-	pthread_attr_setstacksize(&attr, 2048);
-	pthread_create_name(&stats_thread, NULL, output_thread_i2s_stats, NULL, "output_i2s_sts");
+	esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
 	
-	pthread_attr_destroy(&attr);
+    cfg.thread_name= "output_i2s";
+    cfg.inherit_cfg = false;
+	cfg.prio = CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1;
+    cfg.stack_size = PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE;
+    esp_pthread_set_cfg(&cfg);
+	pthread_create(&thread, NULL, output_thread_i2s, NULL);
+	
+	cfg.thread_name= "output_i2s_sts";
+	cfg.prio = CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT - 1;
+    cfg.stack_size = 2048;	
+	esp_pthread_set_cfg(&cfg);
+	pthread_create(&stats_thread, NULL, output_thread_i2s_stats, NULL);
 }
 
 

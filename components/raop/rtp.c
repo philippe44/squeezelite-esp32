@@ -263,7 +263,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 #ifdef WIN32
 		pthread_create(&ctx->rtp_thread, NULL, rtp_thread_func, (void *) ctx);
 #else
-		xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", 4096, ctx, configMAX_PRIORITIES - 3, &ctx->rtp_thread);
+		xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", 4096, ctx,  CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT , &ctx->rtp_thread);
 #endif
 	} else {
 		rtp_end(ctx);

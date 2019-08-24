@@ -184,13 +184,14 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 				// how many ms have we really played
 				ms = now - output.updated + ((u64_t) (output.frames_played_dmp - output.device_frames) * 1000) / RAOP_SAMPLE_RATE;
 				error = ms - (now - raop_sync.start_time); 
-				LOG_INFO("backend played %u, desired %u, (delta:%d)", ms, now - raop_sync.start_time, error);
+				LOG_DEBUG("backend played %u, desired %u, (delta:%d)", ms, now - raop_sync.start_time, error);
 				if (abs(error) < 10 && abs(raop_sync.error) < 10) raop_sync.start = false;
 			} else {	
 				// in how many ms will the most recent block play 
 				ms = ((u64_t) ((_buf_used(outputbuf) - raop_sync.len) / BYTES_PER_FRAME + output.device_frames + output.frames_in_process) * 1000) / RAOP_SAMPLE_RATE - (now - output.updated);
 				error = (raop_sync.playtime - now) - ms;
-				LOG_INFO("head local:%u, remote:%u (delta:%d)", ms, raop_sync.playtime - now, error);
+				LOG_DEBUG("head local:%u, remote:%u (delta:%d)", ms, raop_sync.playtime - now, error);
+				LOG_DEBUG("obuf:%u, sync_len:%u, devframes:%u, inproc:%u", _buf_used(outputbuf), raop_sync.len, output.device_frames, output.frames_in_process);
 			}	
 			
 			if (error < -10 && raop_sync.error < -10) {
