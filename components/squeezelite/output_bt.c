@@ -43,7 +43,8 @@ extern u8_t config_spdif_gpio;
 
 static log_level loglevel;
 static bool running = false;
-uint8_t * btout;
+static uint8_t *btout;
+static frames_t oframes;
 
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
@@ -101,12 +102,12 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		}
 
 #if BYTES_PER_FRAME == 4
-		memcpy(btout, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+		memcpy(btout + oframes * BYTES_PER_FRAME, outputbuf->readp, out_frames * BYTES_PER_FRAME);
 #else
 	{
 		frames_t count = out_frames;
 		s32_t *_iptr = (s32_t*) outputbuf->readp;
-		s16_t *_optr = (s16_t*) bt_optr;
+		s16_t *_optr = (s16_t*) (btout + oframes * BYTES_PER_FRAME);
 		while (count--) {
 			*_optr++ = *_iptr++ >> 16;
 			*_optr++ = *_iptr++ >> 16;
@@ -117,7 +118,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 	} else {
 
 		u8_t *buf = silencebuf;
-		memcpy(btout, buf, out_frames * BYTES_PER_FRAME);
+		memcpy(btout + oframes * BYTES_PER_FRAME, buf, out_frames * BYTES_PER_FRAME);
 	}
 
 	return (int)out_frames;
@@ -131,6 +132,7 @@ int32_t output_bt_data(uint8_t *data, int32_t len) {
 	}
 	
 	btout = data;
+	oframes = 0;
 
 	// This is how the BTC layer calculates the number of bytes to
 	// for us to send. (BTC_SBC_DEC_PCM_DATA_LEN * sizeof(OI_INT16) - availPcmBytes

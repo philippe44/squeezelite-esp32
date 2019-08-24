@@ -375,7 +375,7 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 	unsigned char iv[16];
 	int aeslen;
 	assert(len<=MAX_PACKET);
-	
+
 	if (ctx->decrypt) {
 		aeslen = len & ~0xf;
 		memcpy(iv, ctx->aesiv, sizeof(iv));

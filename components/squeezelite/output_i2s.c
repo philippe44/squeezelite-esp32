@@ -457,6 +457,7 @@ static void *output_thread_i2s() {
 			synced = false;
 		}
 		
+		oframes = 0;
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
 		// try to estimate how much we have consumed from the DMA buffer (calculation is incorrect at the very beginning ...)
@@ -479,7 +480,6 @@ static void *output_thread_i2s() {
 		} else if (discard) {
 			discard -= oframes;
 			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
-			oframes = 0;
 			UNLOCK;
 			continue;
 		}
@@ -527,8 +527,6 @@ static void *output_thread_i2s() {
 			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", oframes * bytes_per_frame, bytes);
 		}
 		
-		oframes = 0;
-			
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
 		
 	}
