@@ -551,7 +551,7 @@ static void *rtp_thread_func(void *arg) {
 		socklen_t rtp_client_len = sizeof(struct sockaddr_storage);
 		int idx = 0;
 		char *pktp = packet;
-		struct timeval timeout = {0, 50*1000};
+		struct timeval timeout = {0, 100*1000};
 
 		FD_ZERO(&fds);
 		for (i = 0; i < 3; i++)	{ FD_SET(ctx->rtp_sockets[i].sock, &fds); }

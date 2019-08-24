@@ -116,6 +116,7 @@ static i2s_config_t i2s_config;
 static int bytes_per_frame;
 static thread_type thread, stats_thread;
 static u8_t *obuf;
+static frames_t oframes;
 static bool spdif;
 static size_t dma_buf_frames;
 
@@ -315,7 +316,7 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	isI2SStarted=false;
 	
 	dac_cmd(DAC_OFF);
-	
+
 	esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
 	
     cfg.thread_name= "output_i2s";
@@ -381,13 +382,13 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 			_apply_gain(outputbuf, out_frames, gainL, gainR);
 		}
 			
-		memcpy(obuf, outputbuf->readp, out_frames * bytes_per_frame);
+		memcpy(obuf + oframes * bytes_per_frame, outputbuf->readp, out_frames * bytes_per_frame);
 #else
 		optr = (s32_t*) outputbuf->readp;	
 #endif		
 	} else {
 #if BYTES_PER_FRAME == 4		
-		memcpy(obuf, silencebuf, out_frames * bytes_per_frame);
+		memcpy(obuf + oframes * bytes_per_frame, silencebuf, out_frames * bytes_per_frame);
 #else		
 		optr = (s32_t*) silencebuf;
 #endif	
@@ -401,8 +402,10 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 			dsd_invert((u32_t *) optr, out_frames);
 	)
 
-	_scale_and_pack_frames(obuf, optr, out_frames, gainL, gainR, output.format);
+	_scale_and_pack_frames(obuf + oframes * bytes_per_frame, optr, out_frames, gainL, gainR, output.format);
 #endif	
+
+	oframes += out_frames;
 
 	return out_frames;
 }
@@ -412,7 +415,7 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
  */
 static void *output_thread_i2s() {
 	size_t count = 0, bytes;
-	frames_t iframes = FRAME_BLOCK, oframes;
+	frames_t iframes = FRAME_BLOCK;
 	uint32_t timer_start = 0;
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
@@ -458,9 +461,10 @@ static void *output_thread_i2s() {
 		output.frames_played_dmp = output.frames_played;
 		// try to estimate how much we have consumed from the DMA buffer (calculation is incorrect at the very beginning ...)
 		output.device_frames = dma_buf_frames - ((output.updated - fullness) * output.current_sample_rate) / 1000;
-		oframes = _output_frames( iframes );
+		_output_frames( iframes );
+		// oframes must be a global updated by the write callback
 		output.frames_in_process = oframes;
-								
+						
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
@@ -475,6 +479,7 @@ static void *output_thread_i2s() {
 		} else if (discard) {
 			discard -= oframes;
 			iframes = discard ? min(FRAME_BLOCK, discard) : FRAME_BLOCK;
+			oframes = 0;
 			UNLOCK;
 			continue;
 		}
@@ -521,6 +526,8 @@ static void *output_thread_i2s() {
 		if (bytes != oframes * bytes_per_frame) {
 			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", oframes * bytes_per_frame, bytes);
 		}
+		
+		oframes = 0;
 			
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
 		
