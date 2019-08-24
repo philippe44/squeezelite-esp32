@@ -50,7 +50,7 @@ static struct {
  */
 static void sink_data_handler(const uint8_t *data, uint32_t len)
 {
-    size_t bytes;
+    size_t bytes, space;
 		
 	// would be better to lock decoder, but really, it does not matter
 	if (decode.state != DECODE_STOPPED) {
@@ -75,6 +75,7 @@ static void sink_data_handler(const uint8_t *data, uint32_t len)
 		}
 #endif	
 		_buf_inc_writep(outputbuf, bytes);
+		space = _buf_space(outputbuf);
 		
 		len -= bytes;
 		data += bytes;
@@ -82,7 +83,7 @@ static void sink_data_handler(const uint8_t *data, uint32_t len)
 		UNLOCK_O;
 		
 		// allow i2s to empty the buffer if needed
-		if (len) usleep(50000);
+		if (len && !space) usleep(50000);
 	}	
 }
 
