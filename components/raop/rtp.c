@@ -201,7 +201,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 	rtp_resp_t resp = { 0, 0, 0, NULL };
 
 	if (!ctx) return resp;
-
+	
 	ctx->host = host;
 	ctx->decrypt = false;
 	ctx->cmd_cb = cmd_cb;
@@ -263,7 +263,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 #ifdef WIN32
 		pthread_create(&ctx->rtp_thread, NULL, rtp_thread_func, (void *) ctx);
 #else
-		xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", 4096, ctx,  CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT , &ctx->rtp_thread);
+		xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", 4096, ctx,  CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1 , &ctx->rtp_thread);
 #endif
 	} else {
 		rtp_end(ctx);
@@ -375,7 +375,7 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 	unsigned char iv[16];
 	int aeslen;
 	assert(len<=MAX_PACKET);
-
+	
 	if (ctx->decrypt) {
 		aeslen = len & ~0xf;
 		memcpy(iv, ctx->aesiv, sizeof(iv));
