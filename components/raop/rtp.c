@@ -211,9 +211,7 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 	pthread_mutex_init(&ctx->ab_mutex, 0);
 	ctx->flush_seqno = -1;
 	ctx->latency = latency;
-
-	// write pointer = last written, read pointer = next to read so fill = w-r+1
-	ctx->ab_read = ctx->ab_write + 1;
+	ctx->ab_read = ctx->ab_write;
 
 #ifdef __RTP_STORE
 	ctx->rtpIN = fopen("airplay.rtpin", "wb");
@@ -375,7 +373,7 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 	unsigned char iv[16];
 	int aeslen;
 	assert(len<=MAX_PACKET);
-	
+
 	if (ctx->decrypt) {
 		aeslen = len & ~0xf;
 		memcpy(iv, ctx->aesiv, sizeof(iv));
@@ -413,7 +411,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 		}
 	}
 
-	if (seqno == ctx->ab_write+1) {
+	if (seqno == (u16_t) (ctx->ab_write+1)) {
 		// expected packet
 		abuf = ctx->audio_buffer + BUFIDX(seqno);
 		ctx->ab_write = seqno;
@@ -421,20 +419,20 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 
 	} else if (seq_order(ctx->ab_write, seqno)) {
 		// newer than expected
-		if (seqno - ctx->ab_write - 1 > ctx->latency / ctx->frame_size) {
+		if (ctx->latency && seq_order(ctx->latency / ctx->frame_size, seqno - ctx->ab_write - 1)) {
 			// only get rtp latency-1 frames back (last one is seqno)
-			LOG_WARN("[%p] too many missing frames %hu", ctx, seqno - ctx->ab_write - 1);
+			LOG_WARN("[%p] too many missing frames %hu seq: %hu, (W:%hu R:%hu)", ctx, seqno - ctx->ab_write - 1, seqno, ctx->ab_write, ctx->ab_read);
 			ctx->ab_write = seqno - ctx->latency / ctx->frame_size;
 		}
-		if (seqno - ctx->ab_read + 1 > ctx->latency / ctx->frame_size) {
+		if (ctx->latency && seq_order(ctx->latency / ctx->frame_size, seqno - ctx->ab_read)) {
 			// if ab_read is lagging more than http latency, advance it
-			LOG_WARN("[%p] on hold for too long %hu", ctx, seqno - ctx->ab_read + 1);
+			LOG_WARN("[%p] on hold for too long %hu (W:%hu R:%hu)", ctx, seqno - ctx->ab_read + 1, ctx->ab_write, ctx->ab_read);
 			ctx->ab_read = seqno - ctx->latency / ctx->frame_size + 1;
 		}
 		if (rtp_request_resend(ctx, ctx->ab_write + 1, seqno-1)) {
 			seq_t i;
 			u32_t now = gettime_ms();
-			for (i = ctx->ab_write + 1; i <= seqno-1; i++) {
+			for (i = ctx->ab_write + 1; seq_order(i, seqno); i++) {
 				ctx->audio_buffer[BUFIDX(i)].rtptime = rtptime - (seqno-i)*ctx->frame_size;
 				ctx->audio_buffer[BUFIDX(i)].last_resend = now;
 			}
@@ -453,7 +451,7 @@ static void buffer_put_packet(rtp_t *ctx, seq_t seqno, unsigned rtptime, bool fi
 	}
 
 	if (ctx->in_frames++ > 1000) {
-		LOG_INFO("[%p]: fill [level:%hd rec:%u] [W:%hu R:%hu]", ctx, (seq_t) (ctx->ab_write - ctx->ab_read + 1), ctx->resent_rec, ctx->ab_write, ctx->ab_read);
+		LOG_INFO("[%p]: fill [level:%hu rec:%u] [W:%hu R:%hu]", ctx, ctx->ab_write - ctx->ab_read, ctx->resent_rec, ctx->ab_write, ctx->ab_read);
 		ctx->in_frames = 0;
 	}
 
@@ -496,6 +494,27 @@ static void buffer_push_packet(rtp_t *ctx) {
 			LOG_DEBUG("[%p]: discarded frame now:%u missed by:%d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
 			ctx->discarded++;
 		} else if (curframe->ready) {
+/*
+	// some dirty code to see if the click problem comes from i2s stage or decoder stage
+	static s16_t sin_data[200];
+	static bool gen = false;
+
+	if (!gen) {
+		for (i = 0; i < 200; i++) sin_data[i] = 1024 * sin((2*3.14159*220.5*i)/44100.);
+		gen = true;
+	}
+
+	static int c = 0;
+	int cnt = 0;
+	s16_t *p = (s16_t*) curframe->data;
+
+	while (cnt++ < 352) {
+		 *p = sin_data[c++ % 200];
+		*(p+1) = *p;
+		p += 2;
+	}
+	curframe->len = 1408;
+*/	
 			ctx->data_cb((const u8_t*) curframe->data, curframe->len, playtime);
 			curframe->ready = 0;
 		} else if (playtime - now <= hold) {
@@ -507,8 +526,7 @@ static void buffer_push_packet(rtp_t *ctx) {
 		ctx->ab_read++;
 		ctx->out_frames++;
 
-	// need to be promoted to a signed int *before* addition
-	} while ((s16_t) (ctx->ab_write - ctx->ab_read) + 1 > 0);
+	} while (seq_order(ctx->ab_read, ctx->ab_write));
 
 	if (ctx->out_frames > 1000) {
 		LOG_INFO("[%p]: drain [level:%hd head:%d ms] [W:%hu R:%hu] [req:%u sil:%u dis:%u]",
@@ -520,7 +538,7 @@ static void buffer_push_packet(rtp_t *ctx) {
 	LOG_SDEBUG("playtime %u %d [W:%hu R:%hu] %d", playtime, playtime - now, ctx->ab_write, ctx->ab_read, curframe->ready);
 
 	// each missing packet will be requested up to (latency_frames / 16) times
-	for (i = 1; seq_order(ctx->ab_read + i, ctx->ab_write); i += 16) {
+	for (i = 0; seq_order(ctx->ab_read + i, ctx->ab_write); i += 16) {
 		abuf_t *frame = ctx->audio_buffer + BUFIDX(ctx->ab_read + i);
 		if (!frame->ready && now - frame->last_resend > RESEND_TO) {
 			rtp_request_resend(ctx, ctx->ab_read + i, ctx->ab_read + i);
@@ -732,7 +750,7 @@ static bool rtp_request_resend(rtp_t *ctx, seq_t first, seq_t last) {
 
 	// do not request silly ranges (happens in case of network large blackouts)
 	if (seq_order(last, first) || last - first > BUFFER_FRAMES / 2) return false;
-
+	
 	ctx->resent_req += last - first + 1;
 
 	LOG_DEBUG("resend request [W:%hu R:%hu first=%hu last=%hu]", ctx->ab_write, ctx->ab_read, first, last);

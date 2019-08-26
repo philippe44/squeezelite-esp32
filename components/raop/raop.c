@@ -412,6 +412,12 @@ static bool handle_rtsp(raop_ctx_t *ctx, int sock)
 		NFREE(ctx->rtsp.aeskey);
 		NFREE(ctx->rtsp.aesiv);
 		NFREE(ctx->rtsp.fmtp);
+		
+		// LMS might has taken over the player, leaving us with a running RTP session
+		if (ctx->rtp) {
+			LOG_INFO("[%p]: closing unfinished RTP session", ctx);
+			rtp_end(ctx->rtp);
+		}	
 
 		if ((p = strcasestr(body, "rsaaeskey")) != NULL) {
 			unsigned char *aeskey;
