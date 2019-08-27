@@ -412,6 +412,21 @@ void bt_sink_init(bt_cmd_cb_t cmd_cb, bt_data_cb_t data_cb)
 
 }
 
+void bt_sink_deinit(void)
+{
+	/* this still does not work, can't figure out how to stop properly this BT stack */
+	bt_app_task_shut_down();
+	ESP_LOGI(BT_AV_TAG, "bt_app_task shutdown successfully");	
+	if (esp_bluedroid_disable() != ESP_OK) return;
+    ESP_LOGI(BT_AV_TAG, "esp_bluedroid_disable called successfully");
+    if (esp_bluedroid_deinit() != ESP_OK) return;
+    ESP_LOGI(BT_AV_TAG, "esp_bluedroid_deinit called successfully");
+    if (esp_bt_controller_disable() != ESP_OK) return;
+    ESP_LOGI(BT_AV_TAG, "esp_bt_controller_disable called successfully");
+    if (esp_bt_controller_deinit() != ESP_OK) return;
+	ESP_LOGI(BT_AV_TAG, "bt stopped successfully");
+}
+
 static void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param)
 {
     switch (event) {

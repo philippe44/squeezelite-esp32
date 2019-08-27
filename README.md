@@ -1,3 +1,6 @@
+TODO
+- when IP changes, best is to reboot at this point
+
 MOST IMPORTANT: create the right default config file
 - make defconfig
 Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)

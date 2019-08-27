@@ -32,6 +32,14 @@ static log_level *loglevel = &raop_loglevel;
 static struct raop_ctx_s *raop;
 
 /****************************************************************************************
+ * Airplay sink de-initialization
+ */
+void raop_sink_deinit(void) {
+	raop_delete(raop);
+	mdns_free();
+}	
+
+/****************************************************************************************
  * Airplay sink initialization
  */
 void raop_sink_init(raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb) {

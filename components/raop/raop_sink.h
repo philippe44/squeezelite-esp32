@@ -25,6 +25,12 @@ typedef void (*raop_data_cb_t)(const u8_t *data, size_t len, u32_t playtime);
 void raop_sink_init(raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb);
 
 /**
+ * @brief     deinit sink mode (need to be provided)
+ */
+
+void raop_sink_deinit(void);
+
+/**
  * @brief     init sink mode (need to be provided)
  */
 

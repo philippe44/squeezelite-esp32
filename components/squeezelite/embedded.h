@@ -36,9 +36,13 @@ typedef unsigned long long u64_t;
 #define gettime_ms _gettime_ms_
 #define mutex_create_p(m) mutex_create(m)
 
-uint32_t _gettime_ms_(void);
-int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
+uint32_t 	_gettime_ms_(void);
+
+int			pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
 				   void *(*start_routine)( void * ), void *arg, char *name);
-void register_external(void);
+			
+// these are here as they can be #define to nothing			
+void 		register_external(void);
+void 		deregister_external(void);
 				   
 #endif // EMBEDDED_H

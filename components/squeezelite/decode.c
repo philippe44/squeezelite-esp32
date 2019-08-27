@@ -116,6 +116,10 @@ static void *decode_thread() {
 			usleep(100000);
 		}
 	}
+	
+#if EMBEDDED	
+	deregister_external();
+#endif	
 
 	return 0;
 }

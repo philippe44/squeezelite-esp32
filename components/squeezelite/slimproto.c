@@ -631,7 +631,6 @@ static void slimproto_run() {
 #endif
 			last = now;
 
-
 			LOCK_S;
 			status.stream_full = _buf_used(streambuf);
 			status.stream_size = streambuf->size;

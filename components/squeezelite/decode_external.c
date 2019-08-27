@@ -284,3 +284,16 @@ void register_external(void) {
 	LOG_INFO("Initializing AirPlay sink");		
 #endif
 }
+
+void deregister_external(void) {
+#ifdef CONFIG_BT_SINK	
+	if (!strcasestr(output.device, "BT ")) {
+		bt_sink_deinit();
+		LOG_INFO("Stopping BT sink");
+	}
+#endif	
+#ifdef CONFIG_AIRPLAY_SINK
+	raop_sink_deinit();
+	LOG_INFO("Stopping AirPlay sink");		
+#endif
+}

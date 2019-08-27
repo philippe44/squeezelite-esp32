@@ -23,6 +23,11 @@ typedef void (*bt_data_cb_t)(const uint8_t *data, uint32_t len);
 void bt_sink_init(bt_cmd_cb_t cmd_cb, bt_data_cb_t data_cb);
 
 /**
+ * @brief     deinit sink mode (need to be provided)
+ */
+void bt_sink_deinit(void);
+
+/**
  * @brief     local command mode (stop, play, volume ...)
  */
 void bt_sink_cmd(bt_sink_cmd_t event, ...);

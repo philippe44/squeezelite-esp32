@@ -43,6 +43,8 @@
 #include "dmap_parser.h"
 #include "log_util.h"
 
+#define RTSP_STACK_SIZE (8*1024)
+
 typedef struct raop_ctx_s {
 #ifdef WIN32
 	struct mdns_service *svc;
@@ -57,6 +59,8 @@ typedef struct raop_ctx_s {
 	pthread_t thread, search_thread;
 #else
 	TaskHandle_t thread, search_thread, joiner;
+	StaticTask_t *xTaskBuffer;
+    StackType_t *xStack;
 #endif
 	unsigned char mac[6];
 	int latency;
@@ -179,7 +183,13 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 #else
 	LOG_INFO("starting mDNS with %s", id);
 	ESP_ERROR_CHECK( mdns_service_add(id, "_raop", "_tcp", ctx->port, txt, sizeof(txt) / sizeof(mdns_txt_item_t)) );
+	
+	/*
 	xTaskCreate((TaskFunction_t) rtsp_thread, "RTSP_thread", 8*1024, ctx, ESP_TASK_PRIO_MIN + 1, &ctx->thread);
+	*/
+    ctx->xTaskBuffer = (StaticTask_t*) heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    ctx->xStack = (StackType_t*) malloc(RTSP_STACK_SIZE);
+	ctx->thread = xTaskCreateStatic( (TaskFunction_t) rtsp_thread, "RTSP_thread", RTSP_STACK_SIZE, ctx, ESP_TASK_PRIO_MIN + 1, ctx->xStack, ctx->xTaskBuffer);
 #endif
 
 	return ctx;
@@ -193,6 +203,10 @@ void raop_delete(struct raop_ctx_s *ctx) {
 	socklen_t nlen = sizeof(struct sockaddr);
 
 	if (!ctx) return;
+	
+#if !defined WIN32
+	ctx->joiner = xTaskGetCurrentTaskHandle();
+#endif
 
 	ctx->running = false;
 
@@ -205,8 +219,9 @@ void raop_delete(struct raop_ctx_s *ctx) {
 #ifdef WIN32
 	pthread_join(ctx->thread, NULL);
 #else
-	ctx->joiner = xTaskGetCurrentTaskHandle();
 	xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
+	free(ctx->xStack);
+	heap_caps_free(ctx->xTaskBuffer);
 #endif
 
 	rtp_end(ctx->rtp);
@@ -229,11 +244,13 @@ void raop_delete(struct raop_ctx_s *ctx) {
 	NFREE(ctx->rtsp.aeskey);
 	NFREE(ctx->rtsp.aesiv);
 	NFREE(ctx->rtsp.fmtp);
-
+	
 	// stop broadcasting devices
 #ifdef WIN32
 	mdns_service_remove(ctx->svr, ctx->svc);
 	mdnsd_stop(ctx->svr);
+#else
+	mdns_service_remove("_raop", "_tcp");	
 #endif
 
 	free(ctx);

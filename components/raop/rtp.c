@@ -75,6 +75,8 @@
 #define MIN_LATENCY		11025
 #define MAX_LATENCY   	( (120 * RAOP_SAMPLE_RATE * 2) / 100 )
 
+#define RTP_STACK_SIZE	(4*1024)
+
 #define RTP_SYNC	(0x01)
 #define NTP_SYNC	(0x02)
 
@@ -133,9 +135,11 @@ typedef struct rtp_s {
 	seq_t ab_read, ab_write;
 	pthread_mutex_t ab_mutex;
 #ifdef WIN32
-	pthread_t rtp_thread;
+	pthread_t thread;
 #else
-	TaskHandle_t rtp_thread, joiner;
+	TaskHandle_t thread, joiner;
+	StaticTask_t *xTaskBuffer;
+    StackType_t *xStack;
 #endif
 	alac_file *alac_codec;
 	int flush_seqno;
@@ -259,9 +263,13 @@ rtp_resp_t rtp_init(struct in_addr host, int latency, char *aeskey, char *aesiv,
 	if (rc) {
 		ctx->running = true;
 #ifdef WIN32
-		pthread_create(&ctx->rtp_thread, NULL, rtp_thread_func, (void *) ctx);
+		pthread_create(&ctx->thread, NULL, rtp_thread_func, (void *) ctx);
 #else
-		xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", 4096, ctx,  CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1 , &ctx->rtp_thread);
+		// xTaskCreate((TaskFunction_t) rtp_thread_func, "RTP_thread", RTP_TASK_SIZE, ctx,  CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1 , &ctx->thread);
+		ctx->xTaskBuffer = (StaticTask_t*) heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+		ctx->xStack = (StackType_t*) malloc(RTP_STACK_SIZE);
+		ctx->thread = xTaskCreateStatic( (TaskFunction_t) rtp_thread_func, "RTP_thread", RTP_STACK_SIZE, ctx, 
+										 CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1, ctx->xStack, ctx->xTaskBuffer );
 #endif
 	} else {
 		rtp_end(ctx);
@@ -281,14 +289,19 @@ void rtp_end(rtp_t *ctx)
 	if (!ctx) return;
 
 	if (ctx->running) {
+#if !defined WIN32		
+		ctx->joiner = xTaskGetCurrentTaskHandle();
+#endif
 		ctx->running = false;
 #ifdef WIN32
 		pthread_join(ctx->rtp_thread, NULL);
 #else
-		ctx->joiner = xTaskGetCurrentTaskHandle();
 		xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
+		free(ctx->xStack);
+		heap_caps_free(ctx->xTaskBuffer);
 #endif
 	}
+	
 	for (i = 0; i < 3; i++) closesocket(ctx->rtp_sockets[i].sock);
 
 	delete_alac(ctx->alac_codec);
