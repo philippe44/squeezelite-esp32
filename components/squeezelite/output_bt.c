@@ -19,7 +19,6 @@
  *
  */
  
-#include "driver/gpio.h"
 #include "squeezelite.h"
 #include "perf_trace.h"
 
@@ -39,12 +38,10 @@ extern u8_t *silencebuf;
 
 extern void hal_bluetooth_init(const char * options);
 extern void hal_bluetooth_stop(void);
-extern u8_t config_spdif_gpio;
 
 static log_level loglevel;
 static bool running = false;
-static uint8_t *btout;
-static frames_t oframes;
+uint8_t * btout;
 
 static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t gainR,
 								s32_t cross_gain_in, s32_t cross_gain_out, ISAMPLE_T **cross_ptr);
@@ -68,11 +65,6 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 DECLARE_ALL_MIN_MAX;	
 	
 void output_init_bt(log_level level, char *device, unsigned output_buf_size, char *params, unsigned rates[], unsigned rate_delay, unsigned idle) {
-#ifdef CONFIG_SQUEEZEAMP
-	gpio_pad_select_gpio(config_spdif_gpio);
-	gpio_set_direction(config_spdif_gpio, GPIO_MODE_OUTPUT);
-	gpio_set_level(config_spdif_gpio, 0);
-#endif			
 	loglevel = level;
 	running = true;
 	output.write_cb = &_write_frames;
@@ -102,12 +94,12 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 		}
 
 #if BYTES_PER_FRAME == 4
-		memcpy(btout + oframes * BYTES_PER_FRAME, outputbuf->readp, out_frames * BYTES_PER_FRAME);
+		memcpy(btout, outputbuf->readp, out_frames * BYTES_PER_FRAME);
 #else
 	{
 		frames_t count = out_frames;
 		s32_t *_iptr = (s32_t*) outputbuf->readp;
-		s16_t *_optr = (s16_t*) (btout + oframes * BYTES_PER_FRAME);
+		s16_t *_optr = (s16_t*) bt_optr;
 		while (count--) {
 			*_optr++ = *_iptr++ >> 16;
 			*_optr++ = *_iptr++ >> 16;
@@ -118,7 +110,7 @@ static int _write_frames(frames_t out_frames, bool silence, s32_t gainL, s32_t g
 	} else {
 
 		u8_t *buf = silencebuf;
-		memcpy(btout + oframes * BYTES_PER_FRAME, buf, out_frames * BYTES_PER_FRAME);
+		memcpy(btout, buf, out_frames * BYTES_PER_FRAME);
 	}
 
 	return (int)out_frames;
@@ -132,7 +124,6 @@ int32_t output_bt_data(uint8_t *data, int32_t len) {
 	}
 	
 	btout = data;
-	oframes = 0;
 
 	// This is how the BTC layer calculates the number of bytes to
 	// for us to send. (BTC_SBC_DEC_PCM_DATA_LEN * sizeof(OI_INT16) - availPcmBytes
@@ -152,7 +143,6 @@ int32_t output_bt_data(uint8_t *data, int32_t len) {
 	if (wanted_len > 0) {
 		SET_MIN_MAX(wanted_len, under);
 	}
-	output.frames_in_process = len-wanted_len;
 
 	UNLOCK;
 	SET_MIN_MAX(TIME_MEASUREMENT_GET(start_timer),lock_out_time);

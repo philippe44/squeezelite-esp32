@@ -41,7 +41,6 @@ sure that using rate_delay would fix that
 */
 
 #include "squeezelite.h"
-#include "esp_pthread.h"
 #include "driver/i2s.h"
 #include "driver/i2c.h"
 #include "driver/gpio.h"
@@ -85,9 +84,9 @@ sure that using rate_delay would fix that
 
 typedef enum { DAC_ON = 0, DAC_OFF, DAC_POWERDOWN, DAC_VOLUME } dac_cmd_e;
 
-// must have an integer ratio with FRAME_BLOCK (see spdif comment)
+// must have an integer ratio with FRAME_BLOCK
 #define DMA_BUF_LEN		512	
-#define DMA_BUF_COUNT	12
+#define DMA_BUF_COUNT	16
 
 #define DECLARE_ALL_MIN_MAX 	\
 	DECLARE_MIN_MAX(o); 		\
@@ -116,9 +115,7 @@ static i2s_config_t i2s_config;
 static int bytes_per_frame;
 static thread_type thread, stats_thread;
 static u8_t *obuf;
-static frames_t oframes;
 static bool spdif;
-static size_t dma_buf_frames;
 
 DECLARE_ALL_MIN_MAX;
 
@@ -154,14 +151,12 @@ static void spdif_convert(ISAMPLE_T *src, size_t frames, u32_t *dst, size_t *cou
 #define I2C_PORT	0
 #define I2C_ADDR	0x4c
 #define VOLUME_GPIO	33
-#define JACK_GPIO	34
+#define JACK_GPIO	39
 
 struct tas575x_cmd_s {
 	u8_t reg;
 	u8_t value;
 };
-
-u8_t config_spdif_gpio = CONFIG_SPDIF_DO_IO;
 	
 static const struct tas575x_cmd_s tas575x_init_sequence[] = {
     { 0x00, 0x00 },		// select page 0
@@ -197,9 +192,9 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 #ifdef TAS575x
 	gpio_pad_select_gpio(JACK_GPIO);
 	gpio_set_direction(JACK_GPIO, GPIO_MODE_INPUT);
-			
+	
 	adc1_config_width(ADC_WIDTH_BIT_12);
-    adc1_config_channel_atten(ADC1_CHANNEL_7, ADC_ATTEN_DB_0);
+    adc1_config_channel_atten(ADC1_CHANNEL_0,ADC_ATTEN_DB_0);
     			
 	// init volume & mute
 	gpio_pad_select_gpio(VOLUME_GPIO);
@@ -271,37 +266,27 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 									};
 		i2s_config.sample_rate = output.current_sample_rate * 2;
 		i2s_config.bits_per_sample = 32;
-		// Normally counted in frames, but 16 sample are transformed into 32 bits in spdif
-		i2s_config.dma_buf_len = DMA_BUF_LEN / 2;	
-		i2s_config.dma_buf_count = DMA_BUF_COUNT * 2;
-		/* 
-		   In DMA, we have room for (LEN * COUNT) frames of 32 bits samples that 
-		   we push at sample_rate * 2. Each of these peuso-frames is a single true
-		   audio frame. So the real depth is true frames is (LEN * COUNT / 2)
-		*/   
-		dma_buf_frames = DMA_BUF_COUNT * DMA_BUF_LEN / 2;	
 	} else {
 		pin_config = (i2s_pin_config_t) { .bck_io_num = CONFIG_I2S_BCK_IO, .ws_io_num = CONFIG_I2S_WS_IO, 
 										.data_out_num = CONFIG_I2S_DO_IO, .data_in_num = -1 //Not used
 									};
 		i2s_config.sample_rate = output.current_sample_rate;
 		i2s_config.bits_per_sample = bytes_per_frame * 8 / 2;
-		// Counted in frames (but i2s allocates a buffer <= 4092 bytes)
-		i2s_config.dma_buf_len = DMA_BUF_LEN;	
-		i2s_config.dma_buf_count = DMA_BUF_COUNT;
-		dma_buf_frames = DMA_BUF_COUNT * DMA_BUF_LEN;	
-#ifdef TAS575x	
+#ifdef TAS575x		
 		gpio_pad_select_gpio(CONFIG_SPDIF_DO_IO);
 		gpio_set_direction(CONFIG_SPDIF_DO_IO, GPIO_MODE_OUTPUT);
 		gpio_set_level(CONFIG_SPDIF_DO_IO, 0);
 #endif			
 	}
-
+	
 	i2s_config.mode = I2S_MODE_MASTER | I2S_MODE_TX;
 	i2s_config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
 	i2s_config.communication_format = I2S_COMM_FORMAT_I2S| I2S_COMM_FORMAT_I2S_MSB;
 	// in case of overflow, do not replay old buffer
 	i2s_config.tx_desc_auto_clear = true;		
+	i2s_config.dma_buf_count = DMA_BUF_COUNT;
+	// Counted in frames (but i2s allocates a buffer <= 4092 bytes)
+	i2s_config.dma_buf_len = DMA_BUF_LEN;
 	i2s_config.use_apll = true;
 	i2s_config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1; //Interrupt level 1
 
@@ -316,21 +301,15 @@ void output_init_i2s(log_level level, char *device, unsigned output_buf_size, ch
 	isI2SStarted=false;
 	
 	dac_cmd(DAC_OFF);
+	
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE);
+	pthread_create_name(&thread, &attr, output_thread_i2s, NULL, "output_i2s");
+	pthread_attr_destroy(&attr);
 
-	esp_pthread_cfg_t cfg = esp_pthread_get_default_config();
-	
-    cfg.thread_name= "output_i2s";
-    cfg.inherit_cfg = false;
-	cfg.prio = CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT + 1;
-    cfg.stack_size = PTHREAD_STACK_MIN + OUTPUT_THREAD_STACK_SIZE;
-    esp_pthread_set_cfg(&cfg);
-	pthread_create(&thread, NULL, output_thread_i2s, NULL);
-	
-	cfg.thread_name= "output_i2s_sts";
-	cfg.prio = CONFIG_ESP32_PTHREAD_TASK_PRIO_DEFAULT - 1;
-    cfg.stack_size = 2048;	
-	esp_pthread_set_cfg(&cfg);
-	pthread_create(&stats_thread, NULL, output_thread_i2s_stats, NULL);
+	// leave stack size to default 
+	pthread_create_name(&stats_thread, NULL, output_thread_i2s_stats, NULL, "output_i2s_sts");
 }
 
 
@@ -382,13 +361,13 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 			_apply_gain(outputbuf, out_frames, gainL, gainR);
 		}
 			
-		memcpy(obuf + oframes * bytes_per_frame, outputbuf->readp, out_frames * bytes_per_frame);
+		memcpy(obuf, outputbuf->readp, out_frames * bytes_per_frame);
 #else
 		optr = (s32_t*) outputbuf->readp;	
 #endif		
 	} else {
 #if BYTES_PER_FRAME == 4		
-		memcpy(obuf + oframes * bytes_per_frame, silencebuf, out_frames * bytes_per_frame);
+		memcpy(obuf, silencebuf, out_frames * bytes_per_frame);
 #else		
 		optr = (s32_t*) silencebuf;
 #endif	
@@ -402,20 +381,19 @@ static int _i2s_write_frames(frames_t out_frames, bool silence, s32_t gainL, s32
 			dsd_invert((u32_t *) optr, out_frames);
 	)
 
-	_scale_and_pack_frames(obuf + oframes * bytes_per_frame, optr, out_frames, gainL, gainR, output.format);
+	_scale_and_pack_frames(obuf, optr, out_frames, gainL, gainR, output.format);
 #endif	
-
-	oframes += out_frames;
 
 	return out_frames;
 }
+
 
 /****************************************************************************************
  * Main output thread
  */
 static void *output_thread_i2s() {
 	size_t count = 0, bytes;
-	frames_t iframes = FRAME_BLOCK;
+	frames_t iframes = FRAME_BLOCK, oframes;
 	uint32_t timer_start = 0;
 	int discard = 0;
 	uint32_t fullness = gettime_ms();
@@ -426,14 +404,14 @@ static void *output_thread_i2s() {
 	// spdif needs 16 bytes per frame : 32 bits/sample, 2 channels, BMC encoded
 	if (spdif && (sbuf = malloc(FRAME_BLOCK * 16)) == NULL) {
 		LOG_ERROR("Cannot allocate SPDIF buffer");
-	}
+	}	
 	
 	while (running) {
 			
 		TIME_MEASUREMENT_START(timer_start);
 		
 		LOCK;
-				
+		
 		// manage led display
 		if (state != output.state) {
 			LOG_INFO("Output state is %d", output.state);
@@ -457,15 +435,12 @@ static void *output_thread_i2s() {
 			synced = false;
 		}
 		
-		oframes = 0;
 		output.updated = gettime_ms();
 		output.frames_played_dmp = output.frames_played;
-		// try to estimate how much we have consumed from the DMA buffer (calculation is incorrect at the very beginning ...)
-		output.device_frames = dma_buf_frames - ((output.updated - fullness) * output.current_sample_rate) / 1000;
-		_output_frames( iframes );
-		// oframes must be a global updated by the write callback
-		output.frames_in_process = oframes;
-						
+		// try to estimate how much we have consumed from the DMA buffer
+		output.device_frames = DMA_BUF_COUNT * DMA_BUF_LEN - ((output.updated - fullness) * output.current_sample_rate) / 1000;
+		oframes = _output_frames( iframes );
+				
 		SET_MIN_MAX_SIZED(oframes,rec,iframes);
 		SET_MIN_MAX_SIZED(_buf_used(outputbuf),o,outputbuf->size);
 		SET_MIN_MAX_SIZED(_buf_used(streambuf),s,streambuf->size);
@@ -526,7 +501,7 @@ static void *output_thread_i2s() {
 		if (bytes != oframes * bytes_per_frame) {
 			LOG_WARN("I2S DMA Overflow! available bytes: %d, I2S wrote %d bytes", oframes * bytes_per_frame, bytes);
 		}
-		
+			
 		SET_MIN_MAX( TIME_MEASUREMENT_GET(timer_start),i2s_time);
 		
 	}
@@ -542,7 +517,7 @@ static void *output_thread_i2s() {
 static void *output_thread_i2s_stats() {
 	while (running) {
 #ifdef TAS575x		
-		LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(JACK_GPIO), adc1_get_raw(ADC1_CHANNEL_7) / 4095. * (10+174)/10. * 1.1);
+		LOG_ERROR("Jack %d Voltage %.2fV", !gpio_get_level(JACK_GPIO), adc1_get_raw(ADC1_CHANNEL_0) / 4095. * (10+169)/10. * 1.1);
 #endif		
 		LOCK;
 		output_state state = output.state;
@@ -567,11 +542,6 @@ static void *output_thread_i2s_stats() {
 			LOG_INFO("              ----------+----------+-----------+-----------+");
 			RESET_ALL_MIN_MAX;
 		}
-		LOG_INFO("Heap internal:%zu (min:%zu) external:%zu (min:%zu)", 
-					heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-					heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
-					heap_caps_get_free_size(MALLOC_CAP_SPIRAM),
-					heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
 		usleep(STATS_PERIOD_MS *1000);
 	}
 	return NULL;

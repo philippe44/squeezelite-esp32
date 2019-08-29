@@ -116,10 +116,6 @@ static void *decode_thread() {
 			usleep(100000);
 		}
 	}
-	
-#if EMBEDDED	
-	deregister_external();
-#endif	
 
 	return 0;
 }
@@ -204,7 +200,7 @@ void decode_init(log_level level, const char *include_codecs, const char *exclud
 		sort_codecs((include_codecs ? order_codecs - include_codecs : i), register_mpg());
 		
 #if EMBEDDED
-	register_external();
+	register_other();
 #endif 	
 
 	LOG_DEBUG("include codecs: %s exclude codecs: %s", include_codecs ? include_codecs : "", exclude_codecs);

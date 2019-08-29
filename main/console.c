@@ -29,6 +29,7 @@
 #include "cmd_squeezelite.h"
 #include "nvs_utilities.h"
 pthread_t thread_console;
+
 static void * console_thread();
 void console_start();
 static const char * TAG = "console";
@@ -145,12 +146,12 @@ void process_autoexec(){
 	{
 		ESP_LOGD(TAG,"No matching command found for name autoexec. Adding default entries");
 		uint8_t autoexec_dft=0;
-		char autoexec1_dft[64];
-		char autoexec2_dft[256]="squeezelite -o \"I2S\" -b 500:2000 -d all=info -M esp32";
-		snprintf(autoexec1_dft, 64, "join %s %s", CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD);
+		//char autoexec1_dft[64];
+		char autoexec1_dft[]="squeezelite -o \"I2S\" -b 500:2000 -d all=info -M esp32";
+		//snprintf(autoexec1_dft, 64, "join %s %s", CONFIG_WIFI_SSID, CONFIG_WIFI_PASSWORD);
 		store_nvs_value(NVS_TYPE_U8,"autoexec",&autoexec_dft);
 		store_nvs_value(NVS_TYPE_STR,"autoexec1",autoexec1_dft);
-		store_nvs_value(NVS_TYPE_STR,"autoexec2",autoexec2_dft);
+		//store_nvs_value(NVS_TYPE_STR,"autoexec2",autoexec2_dft);
 	}
 }
 static void initialize_filesystem() {
@@ -237,7 +238,6 @@ void console_start() {
 	/* Register commands */
 	esp_console_register_help_command();
 	register_system();
-	register_wifi();
 	register_nvs();
 	register_squeezelite();
 	register_i2ctools();
@@ -276,6 +276,7 @@ void console_start() {
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 	pthread_create(&thread_console, &attr, console_thread, NULL);
+
 	pthread_attr_destroy(&attr);
 }
 void run_command(char * line){

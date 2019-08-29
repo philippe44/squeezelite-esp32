@@ -47,7 +47,7 @@ static const type_str_pair_t type_str_pair[] = {
 
 static const size_t TYPE_STR_PAIR_SIZE = sizeof(type_str_pair) / sizeof(type_str_pair[0]);
 static const char *ARG_TYPE_STR = "type can be: i8, u8, i16, u16 i32, u32 i64, u64, str, blob";
-char current_namespace[16] = "storage";
+char current_namespace[16] = "espwifimgr";
 static const char * TAG = "platform_esp32";
 
 static struct {

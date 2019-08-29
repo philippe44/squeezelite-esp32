@@ -28,6 +28,12 @@
 #ifdef CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS
 #define WITH_TASKS_INFO 1
 #endif
+#define LWS_MAGIC_REBOOT_TYPE_ADS 0x50001ffc
+#define LWS_MAGIC_REBOOT_TYPE_REQ_FACTORY 0xb00bcafe
+#define LWS_MAGIC_REBOOT_TYPE_FORCED_FACTORY 0xfaceb00b
+#define LWS_MAGIC_REBOOT_TYPE_FORCED_FACTORY_BUTTON 0xf0cedfac
+#define LWS_MAGIC_REBOOT_TYPE_REQ_FACTORY_ERASE_OTA 0xfac0eeee
+
 
 static const char * TAG = "platform_esp32";
 
@@ -37,6 +43,7 @@ static void register_version();
 static void register_restart();
 static void register_deep_sleep();
 static void register_light_sleep();
+static void register_factory_boot();
 #if WITH_TASKS_INFO
 static void register_tasks();
 #endif
@@ -49,6 +56,7 @@ void register_system()
     register_restart();
     register_deep_sleep();
     register_light_sleep();
+    register_factory_boot();
 #if WITH_TASKS_INFO
     register_tasks();
 #endif
@@ -91,7 +99,20 @@ static int restart(int argc, char **argv)
     ESP_LOGI(TAG, "Restarting");
     esp_restart();
 }
+void guided_factory()
+{
+    ESP_LOGI(TAG, "Rebooting to factory.");
+    uint32_t *p_force_factory_magic = (uint32_t *)LWS_MAGIC_REBOOT_TYPE_ADS;
+	*p_force_factory_magic = LWS_MAGIC_REBOOT_TYPE_REQ_FACTORY;
 
+	esp_restart();
+
+}
+static int restart_factory(int argc, char **argv)
+{
+	guided_factory();
+	return 1;
+}
 static void register_restart()
 {
     const esp_console_cmd_t cmd = {
@@ -103,6 +124,16 @@ static void register_restart()
     ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
 }
 
+static void register_factory_boot()
+{
+    const esp_console_cmd_t cmd = {
+        .command = "factory",
+        .help = "Resets and boot to factory (if available)",
+        .hint = NULL,
+        .func = &restart_factory,
+    };
+    ESP_ERROR_CHECK( esp_console_cmd_register(&cmd) );
+}
 /** 'free' command prints available heap memory */
 
 static int free_mem(int argc, char **argv)

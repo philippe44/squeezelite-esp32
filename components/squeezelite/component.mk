@@ -13,8 +13,7 @@ CFLAGS += -O3 -DLINKALL -DLOOPBACK -DNO_FAAD -DRESAMPLE16 -DEMBEDDED -DTREMOR_ON
 	-I$(COMPONENT_PATH)/../tools				\
 	-I$(COMPONENT_PATH)/../codecs/inc/opus 		\
 	-I$(COMPONENT_PATH)/../codecs/inc/opusfile	\
-	-I$(COMPONENT_PATH)/../driver_bt			\
-	-I$(COMPONENT_PATH)/../raop
+	-I$(COMPONENT_PATH)/../driver_bt
 
 #	-I$(COMPONENT_PATH)/../codecs/inc/faad2
 

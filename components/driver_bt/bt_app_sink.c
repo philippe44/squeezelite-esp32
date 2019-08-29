@@ -21,7 +21,6 @@
 #include "esp_gap_bt_api.h"
 #include "esp_a2dp_api.h"
 #include "esp_avrc_api.h"
-#include "nvs.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -40,10 +39,8 @@
 #define BT_RC_CT_TAG            "RCCT"
 
 #ifndef CONFIG_BT_SINK_NAME
-#define CONFIG_BT_SINK_NAME	"default"
+#define CONFIG_BT_SINK_NAME	"unavailable"
 #endif
-
-extern char current_namespace[];
 
 /* event for handler "bt_av_hdl_stack_up */
 enum {
@@ -355,7 +352,7 @@ static void bt_av_hdl_avrc_tg_evt(uint16_t event, void *p_param)
     }
 }
 
-void bt_sink_init(bt_cmd_cb_t cmd_cb, bt_data_cb_t data_cb)
+void bt_sink_init(void (*cmd_cb)(bt_sink_cmd_t cmd, ...), void (*data_cb)(const uint8_t *data, uint32_t len))
 {
 	esp_err_t err;
 	
@@ -412,21 +409,6 @@ void bt_sink_init(bt_cmd_cb_t cmd_cb, bt_data_cb_t data_cb)
 
 }
 
-void bt_sink_deinit(void)
-{
-	/* this still does not work, can't figure out how to stop properly this BT stack */
-	bt_app_task_shut_down();
-	ESP_LOGI(BT_AV_TAG, "bt_app_task shutdown successfully");	
-	if (esp_bluedroid_disable() != ESP_OK) return;
-    ESP_LOGI(BT_AV_TAG, "esp_bluedroid_disable called successfully");
-    if (esp_bluedroid_deinit() != ESP_OK) return;
-    ESP_LOGI(BT_AV_TAG, "esp_bluedroid_deinit called successfully");
-    if (esp_bt_controller_disable() != ESP_OK) return;
-    ESP_LOGI(BT_AV_TAG, "esp_bt_controller_disable called successfully");
-    if (esp_bt_controller_deinit() != ESP_OK) return;
-	ESP_LOGI(BT_AV_TAG, "bt stopped successfully");
-}
-
 static void bt_app_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param)
 {
     switch (event) {
@@ -467,17 +449,9 @@ static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
     switch (event) {
     case BT_APP_EVT_STACK_UP: {
         /* set up device name */
-		nvs_handle nvs;
-        char dev_name[32] = CONFIG_BT_SINK_NAME;
-				
-		if (nvs_open(current_namespace, NVS_READONLY, &nvs) == ESP_OK) {
-			size_t len = 31;
-			nvs_get_str(nvs, "bt_sink_name", dev_name, &len);
-			nvs_close(nvs);
-		}	
-				
-		esp_bt_dev_set_device_name(dev_name);
-		
+        char *dev_name = CONFIG_BT_SINK_NAME;
+        esp_bt_dev_set_device_name(dev_name);
+
         esp_bt_gap_register_callback(bt_app_gap_cb);
 
         /* initialize AVRCP controller */

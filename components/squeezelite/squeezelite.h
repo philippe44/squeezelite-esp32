@@ -539,7 +539,6 @@ unsigned _buf_cont_write(struct buffer *buf);
 void _buf_inc_readp(struct buffer *buf, unsigned by);
 void _buf_inc_writep(struct buffer *buf, unsigned by);
 void buf_flush(struct buffer *buf);
-void _buf_flush(struct buffer *buf);
 void buf_adjust(struct buffer *buf, size_t mod);
 void _buf_resize(struct buffer *buf, size_t size);
 void buf_init(struct buffer *buf, size_t size);
@@ -635,7 +634,7 @@ bool resample_init(char *opt);
 
 // output.c output_alsa.c output_pa.c output_pack.c
 typedef enum { OUTPUT_OFF = -1, OUTPUT_STOPPED = 0, OUTPUT_BUFFER, OUTPUT_RUNNING, 
-			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT } output_state;
+			   OUTPUT_PAUSE_FRAMES, OUTPUT_SKIP_FRAMES, OUTPUT_START_AT, OUTPUT_EXTERNAL } output_state;
 
 #if DSD
 typedef enum { PCM, DOP, DSD_U8, DSD_U16_LE, DSD_U32_LE, DSD_U16_BE, DSD_U32_BE, DOP_S24_LE, DOP_S24_3LE } dsd_format;
@@ -655,8 +654,6 @@ struct outputstate {
 	output_state state;
 	output_format format;
 	const char *device;
-	bool external;
-	u32_t init_size;
 #if ALSA
 	unsigned buffer;
 	unsigned period;
@@ -676,7 +673,6 @@ struct outputstate {
 	unsigned default_sample_rate;
 	bool error_opening;
 	unsigned device_frames;
-	unsigned frames_in_process;
 	u32_t updated;
 	u32_t track_start_time;
 	u32_t current_replay_gain;

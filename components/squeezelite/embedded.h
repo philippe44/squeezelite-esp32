@@ -19,10 +19,10 @@
 #define PTHREAD_STACK_MIN	256
 #endif
 
-#define STREAM_THREAD_STACK_SIZE  6 * 1024
-#define DECODE_THREAD_STACK_SIZE 16 * 1024
-#define OUTPUT_THREAD_STACK_SIZE  6 * 1024
-#define IR_THREAD_STACK_SIZE      6 * 1024
+#define STREAM_THREAD_STACK_SIZE  8 * 1024
+#define DECODE_THREAD_STACK_SIZE 20 * 1024
+#define OUTPUT_THREAD_STACK_SIZE  8 * 1024
+#define IR_THREAD_STACK_SIZE      8 * 1024
 
 //#define BASE_CAP "Model=squeezelite,AccuratePlayPoints=0,HasDigitalOut=1,HasPolarityInversion=1,Firmware=" VERSION	
 
@@ -36,13 +36,9 @@ typedef unsigned long long u64_t;
 #define gettime_ms _gettime_ms_
 #define mutex_create_p(m) mutex_create(m)
 
-uint32_t 	_gettime_ms_(void);
-
-int			pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
+uint32_t _gettime_ms_(void);
+int	pthread_create_name(pthread_t *thread, _CONST pthread_attr_t  *attr, 
 				   void *(*start_routine)( void * ), void *arg, char *name);
-			
-// these are here as they can be #define to nothing			
-void 		register_external(void);
-void 		deregister_external(void);
+void register_other(void);
 				   
 #endif // EMBEDDED_H
