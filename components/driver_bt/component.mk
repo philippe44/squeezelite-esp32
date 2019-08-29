@@ -7,5 +7,6 @@
 # please read the SDK documents if you need to do this.
 #
 
-CFLAGS += -I$(COMPONENT_PATH)/../tools
+CFLAGS += 	-I$(COMPONENT_PATH)/../tools
+			
 #CFLAGS += -DLOG_LOCAL_LEVEL=ESP_LOG_DEBUG

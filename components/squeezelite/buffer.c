@@ -64,6 +64,11 @@ void buf_flush(struct buffer *buf) {
 	mutex_unlock(buf->mutex);
 }
 
+void _buf_flush(struct buffer *buf) {
+	buf->readp  = buf->buf;
+	buf->writep = buf->buf;
+}
+
 // adjust buffer to multiple of mod bytes so reading in multiple always wraps on frame boundary
 void buf_adjust(struct buffer *buf, size_t mod) {
 	size_t size;
@@ -78,6 +83,7 @@ void buf_adjust(struct buffer *buf, size_t mod) {
 
 // called with mutex locked to resize, does not retain contents, reverts to original size if fails
 void _buf_resize(struct buffer *buf, size_t size) {
+	if (size == buf->size) return;
 	free(buf->buf);
 	buf->buf = malloc(size);
 	if (!buf->buf) {

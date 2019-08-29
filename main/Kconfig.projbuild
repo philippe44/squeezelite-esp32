@@ -229,7 +229,7 @@ menu "Squeezelite-ESP32"
 		config BT_SINK_NAME
 			depends on BT_SINK
 			string "Name of Bluetooth A2DP device"
-		        default "ESP32"
+		        default "ESP32-BT"
 		    help
 				This is the name of the bluetooth speaker that will be broadcasted			
 		config BT_SINK_PIN		
@@ -237,8 +237,20 @@ menu "Squeezelite-ESP32"
 			int "Bluetooth PIN code"
 		        default 1234
 		config AIRPLAY_SINK
-			bool "AirPlay receiver (not availabe now)"
-			default n
+			bool "AirPlay receiver"
+			default y
+		config AIRPLAY_NAME
+			depends on AIRPLAY_SINK
+			string "Name of AirPlay device"
+				default "ESP32-AirPlay"
+		    help
+				This is the name of the AirPlay speaker that will be broadcasted		
+		config AIRPLAY_PORT
+			depends on AIRPLAY_SINK
+			string "AirPlay listening port"
+				default 5000
+		    help
+				AirPlay service listening port
 	endmenu	
 
 endmenu

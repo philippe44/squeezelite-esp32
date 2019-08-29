@@ -345,8 +345,9 @@ void output_init_common(log_level level, const char *device, unsigned output_buf
 	unsigned i;
 
 	loglevel = level;
-
+	
 	output_buf_size = output_buf_size - (output_buf_size % BYTES_PER_FRAME);
+	output.init_size = output_buf_size;
 	LOG_DEBUG("outputbuf size: %u", output_buf_size);
 
 	buf_init(outputbuf, output_buf_size);

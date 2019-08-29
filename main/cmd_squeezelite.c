@@ -17,7 +17,7 @@
 #include "nvs_flash.h"
 //extern char current_namespace[];
 static const char * TAG = "squeezelite_cmd";
-#define SQUEEZELITE_THREAD_STACK_SIZE 8192
+#define SQUEEZELITE_THREAD_STACK_SIZE (6*1024)
 extern int main(int argc, char **argv);
 static int launchsqueezelite(int argc, char **argv);
 pthread_t thread_squeezelite;

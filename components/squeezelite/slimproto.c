@@ -371,6 +371,8 @@ static void process_strm(u8_t *pkt, int len) {
 			sendSTAT("STMc", 0);
 			sentSTMu = sentSTMo = sentSTMl = false;
 			LOCK_O;
+			output.external = false;
+			_buf_resize(outputbuf, output.init_size);
 			output.threshold = strm->output_threshold;
 			output.next_replay_gain = unpackN(&strm->replay_gain);
 			output.fade_mode = strm->transition_type - '0';
@@ -629,7 +631,6 @@ static void slimproto_run() {
 #endif
 			last = now;
 
-
 			LOCK_S;
 			status.stream_full = _buf_used(streambuf);
 			status.stream_size = streambuf->size;
@@ -688,7 +689,7 @@ static void slimproto_run() {
 			status.current_sample_rate = output.current_sample_rate;
 			status.updated = output.updated;
 			status.device_frames = output.device_frames;
-			
+						
 			if (output.track_started) {
 				_sendSTMs = true;
 				output.track_started = false;
@@ -703,7 +704,7 @@ static void slimproto_run() {
 			if (_start_output && (output.state == OUTPUT_STOPPED || output.state == OUTPUT_OFF)) {
 				output.state = OUTPUT_BUFFER;
 			}
-			if (output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
+			if (!output.external && output.state == OUTPUT_RUNNING && !sentSTMu && status.output_full == 0 && status.stream_state <= DISCONNECT &&
 				_decode_state == DECODE_STOPPED) {
 
 				_sendSTMu = true;
@@ -721,7 +722,7 @@ static void slimproto_run() {
 				output.state = OUTPUT_OFF;
 				LOG_DEBUG("output timeout");
 			}
-			if (output.state == OUTPUT_RUNNING && now - status.last > 1000) {
+			if (!output.external && output.state == OUTPUT_RUNNING && now - status.last > 1000) {
 				_sendSTMt = true;
 				status.last = now;
 			}
