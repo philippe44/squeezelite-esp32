@@ -155,7 +155,8 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 	addr.sin_addr.s_addr = host.s_addr;
 	addr.sin_family = AF_INET;
 #ifdef WIN32
-	addr.sin_port = 0;
+	ctx->port = 0;
+	addr.sin_port = htons(ctx->port);
 #else
 	ctx->port = 5000;
 	addr.sin_port = htons(ctx->port);
