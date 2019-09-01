@@ -38,9 +38,9 @@ function to process requests, decode URLs, serve files, etc. etc.
 
 /* @brief tag used for ESP serial console messages */
 static const char TAG[] = "http_server";
-static const char json_start[] = "{ \"autoexec\" : %u, \"list\" : [";
+static const char json_start[] = "{ \"autoexec\": %u, \"list\": [";
 static const char json_end[] = "]}";
-static const char template[] = "{ '%s' : '%s' }";
+static const char template[] = "{ \"%s\": \"%s\" }";
 static const char array_separator[]=",";
 
 /* @brief task handle for the http server */
@@ -251,7 +251,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 									ESP_LOGD(TAG,"%s", array_separator);
 								}
 								ESP_LOGI(TAG,"found command %s = %s", autoexec_name, autoexec_value);
-								snprintf(buff,buflen-1,template, autoexec_name,autoexec_value);
+								snprintf(buff, buflen-1, template, autoexec_name, autoexec_value);
 								netconn_write(conn, buff, strlen(buff), NETCONN_NOCOPY);
 								ESP_LOGD(TAG,"%s", buff);
 								ESP_LOGD(TAG,"Freeing memory for command %s name", autoexec_name);
@@ -278,6 +278,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 						int i=1;
 						int lenS = 0, lenA=0;
 						char autoexec_name[21]={0};
+						char autoexec_key[21]={0};
 						char * autoexec_value=NULL;
 						char * autoexec_flag_s=NULL;
 						uint8_t autoexec_flag=0;
@@ -289,14 +290,15 @@ void http_server_netconn_serve(struct netconn *conn) {
 						}
 
 						do {
-							snprintf(autoexec_name,sizeof(autoexec_name)-1,"X-Custom-autoexec%u:",i++);
+							snprintf(autoexec_name,sizeof(autoexec_name)-1,"X-Custom-autoexec%u:",i);
+							snprintf(autoexec_key,sizeof(autoexec_key)-1,"autoexec%u:",i++);
 							ESP_LOGD(TAG,"Looking for command name %s", autoexec_name);
 							autoexec_value = http_server_get_header(save_ptr, autoexec_name, &lenS);
 
 							if(autoexec_value ){
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
 									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s", autoexec_name, autoexec_value);
-									wifi_manager_save_autoexec_config(autoexec_value,autoexec_name,lenS);
+									wifi_manager_save_autoexec_config(autoexec_value,autoexec_key,lenS);
 								}
 								else
 								{
