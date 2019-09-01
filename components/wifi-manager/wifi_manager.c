@@ -250,7 +250,7 @@ esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 		return esp_err;
 	}
 
-	esp_err = nvs_set_str(handle, name, value);
+    esp_err = nvs_set_str(handle, name, value);
 	if (esp_err != ESP_OK){
 		ESP_LOGE(TAG,"Unable to save value %s=%s",name,value);
 		nvs_close(handle);
@@ -265,7 +265,7 @@ esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 
 	nvs_close(handle);
 
-	ESP_LOGD(TAG, "wifi_manager_wrote %s config %s",name,value);
+	ESP_LOGD(TAG, "wifi_manager_wrote %s=%s with length %i", name, value, len);
 
 	return ESP_OK;
 

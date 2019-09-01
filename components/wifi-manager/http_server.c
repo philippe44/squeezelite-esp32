@@ -222,7 +222,6 @@ void http_server_netconn_serve(struct netconn *conn) {
 					ESP_LOGI(TAG,"Serving config.json");
 					char autoexec_name[21]={0};
 					char * autoexec_value=NULL;
-					char * autoexec_flag_s=NULL;
 					uint8_t autoexec_flag=0;
 					int buflen=MAX_COMMAND_LINE_SIZE+strlen(template)+1;
 					char * buff = malloc(buflen);
@@ -277,8 +276,8 @@ void http_server_netconn_serve(struct netconn *conn) {
 					if(wifi_manager_lock_json_buffer(( TickType_t ) 10)){
 						int i=1;
 						int lenS = 0, lenA=0;
-						char autoexec_name[21]={0};
-						char autoexec_key[21]={0};
+						char autoexec_name[22]={0};
+						char autoexec_key[12]={0};
 						char * autoexec_value=NULL;
 						char * autoexec_flag_s=NULL;
 						uint8_t autoexec_flag=0;
@@ -290,14 +289,15 @@ void http_server_netconn_serve(struct netconn *conn) {
 						}
 
 						do {
-							snprintf(autoexec_name,sizeof(autoexec_name)-1,"X-Custom-autoexec%u:",i);
-							snprintf(autoexec_key,sizeof(autoexec_key)-1,"autoexec%u:",i++);
-							ESP_LOGD(TAG,"Looking for command name %s", autoexec_name);
+							snprintf(autoexec_name,sizeof(autoexec_name)-1,"X-Custom-autoexec%u: ",i);
+							snprintf(autoexec_key,sizeof(autoexec_key)-1,"autoexec%u",i++);
+							ESP_LOGD(TAG,"Looking for command name %s.", autoexec_name);
 							autoexec_value = http_server_get_header(save_ptr, autoexec_name, &lenS);
+							snprintf(autoexec_value, lenS+1, autoexec_value);
 
 							if(autoexec_value ){
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
-									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s", autoexec_key, autoexec_value);
+									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s, length %i", autoexec_key, autoexec_value, lenS);
 									wifi_manager_save_autoexec_config(autoexec_value,autoexec_key,lenS);
 								}
 								else

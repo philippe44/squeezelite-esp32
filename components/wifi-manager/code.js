@@ -404,6 +404,6 @@ function updateAutoexec(){
 		headers: { "X-Custom-autoexec": autoexec, "X-Custom-autoexec1": autoexec1 },
 		data: { 'timestamp': Date.now() }
 	});
-    console.log('sent config JSON:', autoexec, autoexec1);
+    console.log('sent config JSON with headers:', autoexec, autoexec1);
 }
 
