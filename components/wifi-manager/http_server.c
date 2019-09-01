@@ -297,7 +297,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 							if(autoexec_value ){
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
-									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s", autoexec_name, autoexec_value);
+									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s", autoexec_key, autoexec_value);
 									wifi_manager_save_autoexec_config(autoexec_value,autoexec_key,lenS);
 								}
 								else
