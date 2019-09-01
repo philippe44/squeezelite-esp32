@@ -15,7 +15,6 @@ var apList = null;
 var selectedSSID = "";
 var refreshAPInterval = null; 
 var checkStatusInterval = null;
-var checkConfigInterval = null;
 
 var StatusIntervalActive = false;
 var ConfigIntervalActive = false;
@@ -28,13 +27,6 @@ function stopCheckStatusInterval(){
 		checkStatusInterval = null;
 	}
 	StatusIntervalActive = false;
-}
-function stopCheckConfigInterval(){
-	if(checkConfigInterval != null){
-		clearTimeout(checkConfigInterval);
-		checkConfigInterval = null;
-	}
-	ConfigIntervalActive=false;
 }
 
 function stopRefreshAPInterval(){
@@ -50,10 +42,6 @@ function stopRefreshAPInterval(){
 function startCheckStatusInterval(){
 	StatusIntervalActive = true;
 	checkStatusInterval = setTimeout(checkStatus, 950);
-}
-function startCheckConfigInterval(){
-	ConfigIntervalActive = true;
-	checkConfigInterval = setTimeout(checkConfig, 950);
 }
 
 function startRefreshAPInterval(){
@@ -78,8 +66,6 @@ function RepeatRefreshAPInterval(){
 }
 
 $(document).ready(function(){
-	
-	
 	$("#wifi-status").on("click", ".ape", function() {
 		$( "#wifi" ).slideUp( "fast", function() {});
 		$( "#connect-details" ).slideDown( "fast", function() {});
@@ -138,19 +124,10 @@ $(document).ready(function(){
 		$( "#wifi" ).slideDown( "fast", function() {});
 		
 	});
-	$("#update").on("click", function() {
-		
-		performUpdate();
-	});	
-		$("#factory").on("click", function() {
-		
-		performFactory();
-	});	
 	
 	$("#ok-credits").on("click", function() {
 		$( "#credits" ).slideUp( "fast", function() {});
 		$( "#app" ).slideDown( "fast", function() {});
-		
 	});
 	
 	$("#acredits").on("click", function(event) {
@@ -196,47 +173,17 @@ $(document).ready(function(){
 		$( "#wifi" ).slideDown( "fast", function() {})
 	});
 	
-	
-	
-	
-	
-	
-	
-	
+	$("#update-command").on("click", function() {
+		updateAutoexec();
+	});	
+
 	//first time the page loads: attempt get the connection status and start the wifi scan
 	refreshAP();
 	startCheckStatusInterval();
 	startRefreshAPInterval();
-	startCheckConfigInterval();
-
-
-	
-	
+    getConfig();
 });
 
-
-function performUpdate(){
-	autoexec1 = $("#autoexec1").val();
-	//reset connection 
-// 		
-// 	$( "#ok-connect" ).prop("disabled",true);
-// 	$( "#ssid-wait" ).text(selectedSSID);
-// 	$( "#connect" ).slideUp( "fast", function() {});
-// 	$( "#connect_manual" ).slideUp( "fast", function() {});
-// 	$( "#connect-wait" ).slideDown( "fast", function() {});
-// 	// todo: should we update the UI here? 
-	
-	$.ajax({
-		url: '/config.json',
-		dataType: 'json',
-		method: 'POST',
-		cache: false,
-		headers: { 'X-Custom-autoexec1': autoexec1 },
-		data: { 'timestamp': Date.now()}
-	});
-
-
-}
 
 function performFactory(){
 		
@@ -257,7 +204,6 @@ function performFactory(){
 
 
 }
-
 
 function performConnect(conntype){
 	
@@ -302,7 +248,6 @@ function performConnect(conntype){
 	//now we can re-set the intervals regardless of result
 	startCheckStatusInterval();
 	startRefreshAPInterval();
-	
 }
 
 
@@ -322,7 +267,6 @@ function rssiToIcon(rssi){
 	}
 }
 
-
 function refreshAP(){
 	$.getJSON( "/ap.json", function( data ) {
 		if(data.length > 0){
@@ -337,7 +281,6 @@ function refreshAP(){
 		}
 	});
 	RepeatRefreshAPInterval();
-
 }
 
 function refreshAPHTML(data){
@@ -349,9 +292,6 @@ function refreshAPHTML(data){
 	
 	$( "#wifi-list" ).html(h)
 }
-
-
-
 
 function checkStatus(){
 	$.getJSON( "/status.json", function( data ) {
@@ -424,31 +364,46 @@ function checkStatus(){
 	RepeatCheckStatusInterval();
 }
 
-
-function checkConfig(){
-	var h = "";
-	//{ "autoexec" : 0, "list" : [{ 'autoexec1' : 'squeezelite -o "I2S" -b 500:2000 -d all=info -M esp32' }]}
-	$.getJSON( "/config.json", function( data ) {
-		if(data.hasOwnProperty('autoexec')) {
-			h+= '<div id="autoexec">Autoexec: {0}</div>'.format(data["autoexec"]===1?"Active":"Inactive");
-		}
-		if(data.hasOwnProperty('list')) {
-			data["list"].forEach(function(e, idx, array) {
-		    	for (const [key, value] of Object.entries(e)) {
-  			 		h+= '<input id="{0}" type="text" maxlength="201" value="{1}"><br>'.format(key,value); 
-					}
-				}
-			
-			);
-		h += "\n";
-		$( "#command-list" ).html(h);
-		}
-		
+function getConfig() {
+	$.getJSON("/config.json", function(data) {
+		if (data.hasOwnProperty('autoexec')) {
+            if (data["autoexec"] === 1) {
+                console.log('turn on autoexec');
+                $("#autoexec-cb")[0].checked=true;
+            } else {
+                console.log('turn off autoexec');
+                $("#autoexec-cb")[0].checked=false;
+                $("#autoexec-command").hide(200);
+            }
+        }
+		if (data.hasOwnProperty('list')) {
+            data.list.forEach(function(line) {
+                let key = Object.keys(line)[0];
+                let val = Object.values(line)[0];
+                console.log(key, val);
+                if (key == 'autoexec1') {
+                    $("#autoexec1").val(val);
+                }
+            });
+        }
 	})
 	.fail(function() {
-		//don't do anything, the server might be down while esp32 recalibrates radio
+		console.log("failed to fetch config!");
 	});
-
-	RepeatCheckConfigInterval();
-
 }
+
+function updateAutoexec(){
+	autoexec = ($("#autoexec-cb")[0].checked)?1:0;
+	autoexec1 = $("#autoexec1").val();
+	
+	$.ajax({
+		url: '/config.json',
+		dataType: 'json',
+		method: 'POST',
+		cache: false,
+		headers: { "X-Custom-autoexec": autoexec, "X-Custom-autoexec1": autoexec1 },
+		data: { 'timestamp': Date.now() }
+	});
+    console.log('sent config JSON with headers:', autoexec, autoexec1);
+}
+

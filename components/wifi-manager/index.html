@@ -9,6 +9,7 @@
 		<script src="/code.js"></script>
 		<title>esp32-wifi-manager</title>
 	</head>
+
 	<script>
 var ws, sel, host, old, once = 0, jso, m;
 var to = 0, set_int = 0;
@@ -156,10 +157,52 @@ function heartbeat()
 		
 }
 
+function handleClick(cb) {
+    if (cb.checked) {
+        $("#autoexec-command").show(200);
+    } else {
+        $("#autoexec-command").hide(200);
+    }
+}
 </script>
+
 	<body>
 		<div id="app">
 			<div id="app-wrap">
+                <div id="command_line">
+                    <header>
+                        <h1>Startup command</h1>
+                    </header>
+                    <h2>
+                        <div id="autoexec" class="toggle">
+                            <label>Run automatically at boot
+                                <input id="autoexec-cb" type="checkbox" checked="checked" onclick='handleClick(this);'/><span class="slider"></span>
+                            </label>
+                        </div>
+                    </h2>
+
+                    <div id="autoexec-command">
+                        <h2>Command to run</h2>
+                        <section id="command-list">
+                            <input id="autoexec1" type="text" size="50" maxlength="201" value="squeezelite -o I2S -b 500:2000 -d all=info" />
+                        </section>
+                    </div>
+
+                    <div class="buttons">
+                        <input id="update-command" type="button" value="Update" />
+                    </div>
+                </div>
+                <div id="otadiv">
+                    <header><h1>Firmware upgrade</h1></header>
+                    <form name="multipart" action="otaform" method="post" enctype="multipart/form-data" onsubmit="do_upload(this); return false;">
+                        <progress id="progr" value="0" max="100" >Upload Progress</progress>
+                        <input type="file" name="ota" id="ota" size="20" accept=".bin" onchange="file_change();" style="font-size: 12pt">
+                        <span id="file_info" style="font-size:12pt;"></span>
+                        <input type="submit" id="update" disabled="" value="upload">
+                        <input type="submit" id="factory"  disabled="" value="factory">
+                    </form>
+                </div>
+
 				<div id="wifi">
 					<header>
 						<h1>Wi-Fi</h1>
@@ -179,36 +222,11 @@ function heartbeat()
 					</section>
 					<div id="pwrdby"><em>Powered by </em><a id="acredits" href="#"><strong>esp32-wifi-manager</strong></a>.</div>
 				</div>
-				<div id="command_line">
-				<header>
-						<h1>Startup command</h1>
-					</header>
-					<h2>Squeezelite</span></h2>
-					
-					<div id="autoexec1_current" ></div>
-					<section id="command-list">
-					<input id="autoexec1" type="text" maxlength="201" placeholder="squeezelite -o I2S -b 500:2000 -d all=info" value="">
-					</section>
-					
-					<div class="buttons">
-					<input id="update_command" type="button" value="Update"  />
-					</div>
-				</div>
-			<div id="ota">
-				<header><h1>Application</h1></header>
-				<form name="multipart" action="otaform" method="post" enctype="multipart/form-data" onsubmit="do_upload(this); return false;">
-	          	<progress id="progr" value="0" max="100" >Upload Progress</progress>
-	            <input type="file" name="ota" id="ota" size="20" accept=".bin" onchange="file_change();" style="font-size: 12pt">
-	            <span id="file_info" style="font-size:12pt;"></span>
-	            <input type="submit" id="update" disabled="" value="upload">
-	            <input type="submit" id="factory"  disabled="" value="factory">
-	        </form>
-				</div>
 				<div id="connect_manual">
 					<header>
 						<h1>Enter Details</h1>
 					</header>
-					<h2>Manual Connection</span></h2>
+					<h2>Manual Connection</h2>
 					<section>
 						<input id="manual_ssid" type="text" placeholder="SSID" value="">
 						<input id="manual_pwd" type="password" placeholder="Password" value="">
