@@ -192,7 +192,6 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 				error = (raop_sync.playtime - now) - ms;
 				LOG_INFO("head local:%u, remote:%u (delta:%d)", ms, raop_sync.playtime - now, error);
 				LOG_DEBUG("obuf:%u, sync_len:%u, devframes:%u, inproc:%u", _buf_used(outputbuf), raop_sync.len, output.device_frames, output.frames_in_process);
-				//break;
 			}	
 			
 			if (error < -10 && raop_sync.error < -10) {
@@ -206,9 +205,8 @@ void raop_sink_cmd_handler(raop_event_t event, void *param)
 				raop_sync.error = 0;
 				LOG_INFO("pausing for %u frames", output.pause_frames);
 			}
-			
+				
 			raop_sync.error = error;
-						
 			break;
 		}
 		case RAOP_SETUP:
