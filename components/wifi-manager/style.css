@@ -265,7 +265,9 @@ h3 {
 	position: absolute;
 	cursor: pointer;
 	top: 1.5em;
+
     left: 8px;
+
 	width: 4em;
 	height: 2em;
 	background-color: #c32e04;
@@ -348,3 +350,4 @@ input#ota {
 textarea#autoexec1 {
     width: 100%;
 }
+

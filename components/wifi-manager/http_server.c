@@ -225,8 +225,8 @@ void http_server_netconn_serve(struct netconn *conn) {
 					uint8_t autoexec_flag=0;
 					int buflen=MAX_COMMAND_LINE_SIZE+strlen(template)+1;
 					char * buff = malloc(buflen);
-                    char *s = "\"";
-                    char *r = "\\\"";
+          char *s = "\"";
+          char *r = "\\\"";
 					if(!buff)
 					{
 						ESP_LOGE(TAG,"Unable to allocate buffer for config.json!");
@@ -252,7 +252,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 									ESP_LOGD(TAG,"%s", array_separator);
 								}
 								ESP_LOGI(TAG,"found command %s = %s", autoexec_name, autoexec_value);
-                                strreplace(autoexec_value, s, r);
+                strreplace(autoexec_value, s, r);
 								snprintf(buff, buflen-1, template, autoexec_name, autoexec_value);
 								netconn_write(conn, buff, strlen(buff), NETCONN_NOCOPY);
 								ESP_LOGD(TAG,"%s", buff);
@@ -389,3 +389,4 @@ void strreplace(char *src, char *str, char *rep)
         }
     }
 }
+
