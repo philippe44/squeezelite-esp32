@@ -1,3 +1,4 @@
+
 /*
  * HairTunes - RAOP packet handler and slave-clocked replay engine
  * Copyright (c) James Laird 2011
@@ -47,14 +48,13 @@
 
 #ifdef WIN32
 #include <openssl/aes.h>
-#include "alac.h"
+#include "alac_wrapper.h"
 #else
 #include "esp_pthread.h"
 #include "esp_system.h"
 #include <mbedtls/version.h>
 #include <mbedtls/aes.h>
-//#include "alac_wrapper.h"
-#include "alac.h"
+#include "alac_wrapper.h"
 #endif
 
 #define NTP2MS(ntp) ((((ntp) >> 10) * 1000L) >> 22)
@@ -71,7 +71,7 @@
 
 // default buffer size
 #define BUFFER_FRAMES 	( (150 * RAOP_SAMPLE_RATE * 2) / (352 * 100) )
-#define MAX_PACKET    	1408
+#define MAX_PACKET       1408
 #define MIN_LATENCY		11025
 #define MAX_LATENCY   	( (120 * RAOP_SAMPLE_RATE * 2) / 100 )
 
@@ -141,7 +141,8 @@ typedef struct rtp_s {
 	StaticTask_t *xTaskBuffer;
     StackType_t *xStack;
 #endif
-	alac_file *alac_codec;
+
+	struct alac_codec_s *alac_codec;
 	int flush_seqno;
 	bool playing;
 	raop_data_cb_t data_cb;
@@ -160,34 +161,41 @@ static void*	rtp_thread_func(void *arg);
 static int	  	seq_order(seq_t a, seq_t b);
 
 /*---------------------------------------------------------------------------*/
-static alac_file* alac_init(int fmtp[32]) {
-	alac_file *alac;
-	int sample_size = fmtp[3];
-	
-	if (sample_size != 16) {
-		LOG_ERROR("sample size must be 16 %d", sample_size);
-		return false;
-	}
+static struct alac_codec_s* alac_init(int fmtp[32]) {
+	struct alac_codec_s *alac;
+	unsigned sample_rate;
+	unsigned char sample_size, channels;
+	struct {
+		uint32_t	frameLength;
+		uint8_t		compatibleVersion;
+		uint8_t		bitDepth;
+		uint8_t		pb;
+		uint8_t		mb;
+		uint8_t		kb;
+		uint8_t		numChannels;
+		uint16_t	maxRun;
+		uint32_t	maxFrameBytes;
+		uint32_t	avgBitRate;
+		uint32_t	sampleRate;
+	} config;
 
-	alac = create_alac(sample_size, 2);
+	config.frameLength = htonl(fmtp[1]);
+	config.compatibleVersion = fmtp[2];
+	config.bitDepth = fmtp[3];
+	config.pb = fmtp[4];
+	config.mb = fmtp[5];
+	config.kb = fmtp[6];
+	config.numChannels = fmtp[7];
+	config.maxRun = htons(fmtp[8]);
+	config.maxFrameBytes = htonl(fmtp[9]);
+	config.avgBitRate = htonl(fmtp[10]);
+	config.sampleRate = htonl(fmtp[11]);
 
+	alac = alac_create_decoder(sizeof(config), (unsigned char*) &config, &sample_size, &sample_rate, &channels);
 	if (!alac) {
 		LOG_ERROR("cannot create alac codec", NULL);
 		return NULL;
 	}
-
-	alac->setinfo_max_samples_per_frame = fmtp[1];
-	alac->setinfo_7a 				= fmtp[2];
-	alac->setinfo_sample_size 		= sample_size;
-	alac->setinfo_rice_historymult = fmtp[4];
-	alac->setinfo_rice_initialhistory = fmtp[5];
-	alac->setinfo_rice_kmodifier 	= fmtp[6];
-	alac->setinfo_7f 				= fmtp[7];
-	alac->setinfo_80 				= fmtp[8];
-	alac->setinfo_82 			    = fmtp[9];
-	alac->setinfo_86 				= fmtp[10];
-	alac->setinfo_8a_rate			= fmtp[11];
-	allocate_buffers(alac);
 
 	return alac;
 }
@@ -294,7 +302,7 @@ void rtp_end(rtp_t *ctx)
 #endif
 		ctx->running = false;
 #ifdef WIN32
-		pthread_join(ctx->rtp_thread, NULL);
+		pthread_join(ctx->thread, NULL);
 #else
 		xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
 		free(ctx->xStack);
@@ -304,7 +312,7 @@ void rtp_end(rtp_t *ctx)
 	
 	for (i = 0; i < 3; i++) closesocket(ctx->rtp_sockets[i].sock);
 
-	delete_alac(ctx->alac_codec);
+	if (ctx->alac_codec) alac_delete_decoder(ctx->alac_codec);
 	if (ctx->decrypt_buf) free(ctx->decrypt_buf);
 	
 	pthread_mutex_destroy(&ctx->ab_mutex);
@@ -396,8 +404,12 @@ static void alac_decode(rtp_t *ctx, s16_t *dest, char *buf, int len, int *outsiz
 		mbedtls_aes_crypt_cbc(&ctx->aes, MBEDTLS_AES_DECRYPT, aeslen, iv, (unsigned char*) buf, ctx->decrypt_buf);
 #endif
 		memcpy(ctx->decrypt_buf+aeslen, buf+aeslen, len-aeslen);
-		decode_frame(ctx->alac_codec, ctx->decrypt_buf, dest, outsize);
-	} else decode_frame(ctx->alac_codec, (unsigned char*) buf, dest, outsize);
+		alac_to_pcm(ctx->alac_codec, (unsigned char*) ctx->decrypt_buf, (unsigned char*) dest, 2, (unsigned int*) outsize);
+	} else {
+		alac_to_pcm(ctx->alac_codec, (unsigned char*) buf, (unsigned char*) dest, 2, (unsigned int*) outsize);
+	}	
+	
+	*outsize *= 4;
 }
 
 
@@ -506,28 +518,8 @@ static void buffer_push_packet(rtp_t *ctx) {
 		if (now > playtime) {
 			LOG_DEBUG("[%p]: discarded frame now:%u missed by:%d (W:%hu R:%hu)", ctx, now, now - playtime, ctx->ab_write, ctx->ab_read);
 			ctx->discarded++;
+			curframe->ready = 0;
 		} else if (curframe->ready) {
-/*
-	// some dirty code to see if the click problem comes from i2s stage or decoder stage
-	static s16_t sin_data[200];
-	static bool gen = false;
-
-	if (!gen) {
-		for (i = 0; i < 200; i++) sin_data[i] = 1024 * sin((2*3.14159*220.5*i)/44100.);
-		gen = true;
-	}
-
-	static int c = 0;
-	int cnt = 0;
-	s16_t *p = (s16_t*) curframe->data;
-
-	while (cnt++ < 352) {
-		 *p = sin_data[c++ % 200];
-		*(p+1) = *p;
-		p += 2;
-	}
-	curframe->len = 1408;
-*/	
 			ctx->data_cb((const u8_t*) curframe->data, curframe->len, playtime);
 			curframe->ready = 0;
 		} else if (playtime - now <= hold) {

@@ -109,13 +109,13 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 	char id[64];
 #ifdef WIN32
 	socklen_t nlen = sizeof(struct sockaddr);
-	char *txt[] = { "am=esp32", "tp=UDP", "sm=false", "sv=false", "ek=1",
+	char *txt[] = { "am=airesp32", "tp=UDP", "sm=false", "sv=false", "ek=1",
 					"et=0,1", "md=0,1,2", "cn=0,1", "ch=2",
 					"ss=16", "sr=44100", "vn=3", "txtvers=1",
 					NULL };
 #else
 	mdns_txt_item_t txt[] = {
-		{"am", "esp32"},
+		{"am", "airesp32"},
 		{"tp", "UDP"},
 		{"sm","false"},
 		{"sv","false"},
@@ -155,7 +155,8 @@ struct raop_ctx_s *raop_create(struct in_addr host, char *name,
 	addr.sin_addr.s_addr = host.s_addr;
 	addr.sin_family = AF_INET;
 #ifdef WIN32
-	addr.sin_port = 0;
+	ctx->port = 0;
+	addr.sin_port = htons(ctx->port);
 #else
 	ctx->port = 5000;
 	addr.sin_port = htons(ctx->port);
