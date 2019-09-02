@@ -225,6 +225,8 @@ void http_server_netconn_serve(struct netconn *conn) {
 					uint8_t autoexec_flag=0;
 					int buflen=MAX_COMMAND_LINE_SIZE+strlen(template)+1;
 					char * buff = malloc(buflen);
+                    char *s = "\"";
+                    char *r = "\\\"";
 					if(!buff)
 					{
 						ESP_LOGE(TAG,"Unable to allocate buffer for config.json!");
@@ -242,7 +244,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 						do {
 							snprintf(autoexec_name,sizeof(autoexec_name)-1,"autoexec%u",i);
 							ESP_LOGD(TAG,"Getting command name %s", autoexec_name);
-							autoexec_value= wifi_manager_alloc_get_config(autoexec_name, &l);
+							autoexec_value = wifi_manager_alloc_get_config(autoexec_name, &l);
 							if(autoexec_value!=NULL ){
 								if(i>1)
 								{
@@ -250,6 +252,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 									ESP_LOGD(TAG,"%s", array_separator);
 								}
 								ESP_LOGI(TAG,"found command %s = %s", autoexec_name, autoexec_value);
+                                strreplace(autoexec_value, s, r);
 								snprintf(buff, buflen-1, template, autoexec_name, autoexec_value);
 								netconn_write(conn, buff, strlen(buff), NETCONN_NOCOPY);
 								ESP_LOGD(TAG,"%s", buff);
@@ -366,4 +369,23 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 	/* free the buffer */
 	netbuf_delete(inbuf);
+}
+
+void strreplace(char *src, char *str, char *rep)
+{
+    char *p = strstr(src, str);
+    if (p)
+    {
+        int len = strlen(src)+strlen(rep)-strlen(str);
+        char r[len];
+        memset(r, 0, len);
+        if ( p >= src ){
+            strncpy(r, src, p-src);
+            r[p-src]='\0';
+            strncat(r, rep, strlen(rep));
+            strncat(r, p+strlen(str), p+strlen(str)-src+strlen(src));
+            strcpy(src, r);
+            strreplace(p+strlen(rep), str, rep);
+        }
+    }
 }

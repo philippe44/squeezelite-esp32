@@ -88,6 +88,8 @@ void http_server_start();
  */
 char* http_server_get_header(char *request, char *header_name, int *len);
 
+void strreplace(char *src, char *str, char *rep);
+
 #ifdef __cplusplus
 }
 #endif
