@@ -1,3 +1,5 @@
+var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
+
 // First, checks if it isn't implemented yet.
 if (!String.prototype.format) {
   String.prototype.format = function() {
@@ -173,9 +175,17 @@ $(document).ready(function(){
 		$( "#wifi" ).slideDown( "fast", function() {})
 	});
 	
-	$("#update-command").on("click", function() {
+	$("#update-command").click(function() {
 		updateAutoexec();
 	});	
+
+	$("#generate-command").click(function() {
+		generateCommand();
+	});	
+
+    $('[name=audio]').click(function(){
+        selectOutput(this);
+   	});
 
 	//first time the page loads: attempt get the connection status and start the wifi scan
 	refreshAP();
@@ -183,27 +193,6 @@ $(document).ready(function(){
 	startRefreshAPInterval();
     getConfig();
 });
-
-
-function performFactory(){
-		
-// 	$( "#ok-connect" ).prop("disabled",true);
-// 	$( "#ssid-wait" ).text(selectedSSID);
-// 	$( "#connect" ).slideUp( "fast", function() {});
-// 	$( "#connect_manual" ).slideUp( "fast", function() {});
-// 	$( "#connect-wait" ).slideDown( "fast", function() {});
-// 	// todo: should we update the UI here? 
-	
-	$.ajax({
-		url: '/factory.json',
-		dataType: 'json',
-		method: 'POST',
-		cache: false,
-		data: { 'timestamp': Date.now()}
-	});
-
-
-}
 
 function performConnect(conntype){
 	
@@ -407,3 +396,44 @@ function updateAutoexec(){
     console.log('sent config JSON with headers:', autoexec, autoexec1);
 }
 
+function performFactory(){
+// 	$( "#ok-connect" ).prop("disabled",true);
+// 	$( "#ssid-wait" ).text(selectedSSID);
+// 	$( "#connect" ).slideUp( "fast", function() {});
+// 	$( "#connect_manual" ).slideUp( "fast", function() {});
+// 	$( "#connect-wait" ).slideDown( "fast", function() {});
+// 	// todo: should we update the UI here? 
+	
+	$.ajax({
+		url: '/factory.json',
+		dataType: 'json',
+		method: 'POST',
+		cache: false,
+		data: { 'timestamp': Date.now()}
+	});
+}
+
+var output = '';
+function selectOutput(el) {
+    if ($(el).attr('id') == 'bt') {
+        $("#btsinkdiv").show(200);
+        output = 'bt';
+    } else {
+        $("#btsinkdiv").hide(200);
+        output = 'i2s';
+    }
+}
+
+function generateCommand() {
+    var commandLine = commandHeader + '-n ' + $("#player").val();
+
+    if (output == 'bt') {
+        commandLine += ' -o "BT -n \'' + $("#btsink").val() + '\'"  -R -u m -Z 192000 -r "44100-44100"';
+    } else {
+        commandLine += ' -o I2S';
+    }
+    if ($("#optional").val() != '') {
+        commandLine += ' ' + $("#optional").val();
+    }
+    $("#autoexec1").val(commandLine);
+}
