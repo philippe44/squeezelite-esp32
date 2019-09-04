@@ -35,6 +35,8 @@ function to process requests, decode URLs, serve files, etc. etc.
 #include "cmd_system.h"
 
 
+// todo:  resolve the restrict error below 
+#pragma GCC diagnostic warning "-Wrestrict"
 
 /* @brief tag used for ESP serial console messages */
 static const char TAG[] = "http_server";
