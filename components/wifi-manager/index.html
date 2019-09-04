@@ -182,6 +182,29 @@ function handleClick(cb) {
                     </h2>
 
                     <div id="autoexec-command">
+                        <div id="audioout" class="toggle-buttons">
+                            <h2>Audio output</h2>
+                            <input type="radio" id="i2s" name="audio" />
+                            <label for="i2s">I2S</label>
+                            <input type="radio" id="bt" name="audio" />
+                            <label for="bt">Bluetooth</label>
+                        </div>
+                        <div id="btsinkdiv">
+                            <input id="btsink" type="text" value="BT sink name" />
+                        </div>
+                        <div>
+                            <h2>Player name</h2>
+                            <input id="player" type="text" value="squeezelite" />
+                        </div>
+                        <div>
+                            <h2>Optional setting (e.g. for LMS IP address)</h2>
+                            <input id="optional" type="text" value="" placeholder="-s 192.168.0.1" />
+                        </div>
+
+                        <div class="buttons">
+                            <input id="generate-command" type="button" value="Generate" />
+                        </div>
+
                         <h2>Command to run</h2>
                         <section id="command-list">
                             <textarea id="autoexec1" maxlength="120">squeezelite -o I2S -b 500:2000 -d all=info -M esp32</textarea>

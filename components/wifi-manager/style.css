@@ -347,7 +347,32 @@ input#ota {
     margin-bottom: 15px;
 }
 
+#btsink, #player, #optional {
+    margin-left: 13px;
+}
+
+#btsinkdiv {
+    display: none;
+    margin-top: 20px;
+}
+
 textarea#autoexec1 {
     width: 100%;
 }
 
+.toggle-buttons input[type="radio"] {
+	visibility: hidden;
+    width: 3px;
+    margin-top: 10px;
+}
+
+.toggle-buttons label {
+	border: 1px solid #000;
+	border-radius: 0.5em;
+	padding: 0.5em;
+}
+
+.toggle-buttons input:checked + label {
+	background: #5a9900;
+	box-shadow: none;
+}

@@ -308,7 +308,7 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 							if(autoexec_value ){
 								// todo: replace line below, as it causes an error during compile.
-								// snprintf(autoexec_value, lenS+1, autoexec_value);
+								snprintf(autoexec_value, lenS+1, autoexec_value);
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
 									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s, length %i", autoexec_key, autoexec_value, lenS);
 									wifi_manager_save_autoexec_config(autoexec_value,autoexec_key,lenS);
