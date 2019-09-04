@@ -242,7 +242,9 @@ esp_err_t wifi_manager_save_autoexec_flag(uint8_t flag){
 }
 esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 	nvs_handle handle;
+    char val[len+1];
 	esp_err_t esp_err;
+    if (len) { *val = '\0'; strncat(val, value, len); }
 	ESP_LOGI(TAG, "About to save config to flash");
 	esp_err = nvs_open(wifi_manager_nvs_namespace, NVS_READWRITE, &handle);
 	if (esp_err != ESP_OK) {
@@ -250,9 +252,9 @@ esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 		return esp_err;
 	}
 
-    esp_err = nvs_set_str(handle, name, value);
+    esp_err = nvs_set_str(handle, name, val);
 	if (esp_err != ESP_OK){
-		ESP_LOGE(TAG,"Unable to save value %s=%s",name,value);
+		ESP_LOGE(TAG,"Unable to save value %s=%s",name,val);
 		nvs_close(handle);
 		return esp_err;
 	}
@@ -265,7 +267,7 @@ esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 
 	nvs_close(handle);
 
-	ESP_LOGD(TAG, "wifi_manager_wrote %s=%s with length %i", name, value, len);
+	ESP_LOGD(TAG, "wifi_manager_wrote %s=%s with length %i", name, val, len);
 
 	return ESP_OK;
 

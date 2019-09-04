@@ -35,9 +35,6 @@ function to process requests, decode URLs, serve files, etc. etc.
 #include "cmd_system.h"
 
 
-// todo:  resolve the restrict error below 
-#pragma GCC diagnostic warning "-Wrestrict"
-
 /* @brief tag used for ESP serial console messages */
 static const char TAG[] = "http_server";
 static const char json_start[] = "{ \"autoexec\": %u, \"list\": [";
@@ -309,8 +306,6 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 
 							if(autoexec_value ){
-								// todo: replace line below, as it causes an error during compile.
-								snprintf(autoexec_value, lenS+1, autoexec_value);
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
 									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s, length %i", autoexec_key, autoexec_value, lenS);
 									wifi_manager_save_autoexec_config(autoexec_value,autoexec_key,lenS);
