@@ -45,8 +45,9 @@ static void * squeezelite_thread(){
 		return NULL;
 	}
 	isRunning=true;
-	ESP_LOGI(TAG,"Waiting for WiFi.");
-	while(!wait_for_wifi()){usleep(100000);};
+//  Let's not wait on WiFi to allow squeezelite to run in bluetooth mode
+//	ESP_LOGI(TAG,"Waiting for WiFi.");
+//	while(!wait_for_wifi()){usleep(100000);};
 	ESP_LOGD(TAG ,"Number of args received: %u",thread_parms.argc );
 	ESP_LOGD(TAG ,"Values:");
     for(int i = 0;i<thread_parms.argc; i++){
