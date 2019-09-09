@@ -19,7 +19,7 @@
 #include "trace.h"
 
 #ifndef CONFIG_AIRPLAY_NAME
-#define CONFIG_AIRPLAY_NAME		"disabled"
+#define CONFIG_AIRPLAY_NAME		"ESP32-AirPlay"
 #endif
 
 static const char * TAG = "platform";
@@ -60,7 +60,7 @@ void raop_sink_init(raop_cmd_cb_t cmd_cb, raop_data_cb_t data_cb) {
         
     if (nvs_open(current_namespace, NVS_READONLY, &nvs) == ESP_OK) {
 		size_t len = sizeof(sink_name) - 1;
-		nvs_get_str(nvs, "airplay_sink_name", sink_name, &len);
+		nvs_get_str(nvs, "airplay_name", sink_name, &len);
 		nvs_close(nvs);
 	}	
 	

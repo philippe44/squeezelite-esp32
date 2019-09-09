@@ -39,8 +39,8 @@
 #define BT_RC_TG_TAG            "RCTG"
 #define BT_RC_CT_TAG            "RCCT"
 
-#ifndef CONFIG_BT_SINK_NAME
-#define CONFIG_BT_SINK_NAME	"default"
+#ifndef CONFIG_BT_NAME
+#define CONFIG_BT_NAME	"ESP32-BT"
 #endif
 
 extern char current_namespace[];
@@ -468,11 +468,11 @@ static void bt_av_hdl_stack_evt(uint16_t event, void *p_param)
     case BT_APP_EVT_STACK_UP: {
         /* set up device name */
 		nvs_handle nvs;
-        char dev_name[32] = CONFIG_BT_SINK_NAME;
+        char dev_name[32] = CONFIG_BT_NAME;
 				
 		if (nvs_open(current_namespace, NVS_READONLY, &nvs) == ESP_OK) {
 			size_t len = 31;
-			nvs_get_str(nvs, "bt_sink_name", dev_name, &len);
+			nvs_get_str(nvs, "bt_name", dev_name, &len);
 			nvs_close(nvs);
 		}	
 				

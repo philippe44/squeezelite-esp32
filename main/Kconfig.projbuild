@@ -160,7 +160,7 @@ menu "Squeezelite-ESP32"
 			default y
 			help
 				Enable bluetooth sink (Note that you obviously can't at the same time be a Bluetooth receiver and transmitter)
-		config BT_SINK_NAME
+		config BT_NAME
 			depends on BT_SINK
 			string "Name of Bluetooth A2DP device"
 		        default "ESP32-BT"
