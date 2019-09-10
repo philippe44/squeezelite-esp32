@@ -1,3 +1,4 @@
+var recovery = 0;
 var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
 
 // First, checks if it isn't implemented yet.
@@ -187,6 +188,16 @@ $(document).ready(function(){
         selectOutput(this);
    	});
 
+    if (recovery) {
+		$("#recoverydiv").hide();
+		$("#otadiv").show();
+		$("#command_line").hide();
+		$("#wifi").hide();
+    } else {
+		$("#recoverydiv").show();
+		$("#otadiv").hide();
+    }
+
 	//first time the page loads: attempt get the connection status and start the wifi scan
 	refreshAP();
 	startCheckStatusInterval();
@@ -304,6 +315,7 @@ function checkStatus(){
 					
 					//update wait screen
 					$( "#loading" ).hide();
+					$( "#connect-success" ).append("<p>Your IP address now is: " + text(data["ip"]) + "</p>");
 					$( "#connect-success" ).show();
 					$( "#connect-fail" ).hide();
 				}
@@ -418,6 +430,9 @@ function selectOutput(el) {
     if ($(el).attr('id') == 'bt') {
         $("#btsinkdiv").show(200);
         output = 'bt';
+    } else if ($(el).attr('id') == 'spdif') {
+        $("#btsinkdiv").hide(200);
+        output = 'spdif';
     } else {
         $("#btsinkdiv").hide(200);
         output = 'i2s';
@@ -429,6 +444,8 @@ function generateCommand() {
 
     if (output == 'bt') {
         commandLine += ' -o "BT -n \'' + $("#btsink").val() + '\'"  -R -u m -Z 192000 -r "44100-44100"';
+    } else if (output == 'spdif') {
+        commandLine += ' -o SPDIF';
     } else {
         commandLine += ' -o I2S';
     }
