@@ -1,3 +1,6 @@
+TODO
+- when IP changes, best is to reboot at this point
+
 MOST IMPORTANT: create the right default config file
 - make defconfig
 Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
@@ -20,6 +23,11 @@ nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 nvs_set autoexec u8 -v 1		
 
+4/ set bluetooth & airplaysink name (if not set in menuconfig)
+
+nvs_set bt_sink_name str -v "<name>"
+nvs_set airplay_sink_name str -v "<name>"
+
 The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
 
 The squeezelite options are very similar to the regular Linux ones. Differences are :
@@ -35,6 +43,7 @@ To add options that require quotes ("), escape them with \". For example, so use
 nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
 
 # Additional misc notes to do you build
+- as of this writing, ESP-IDF has a bug int he way the PLL values are calculated for i2s, so you *must* use the i2s.c file in the patch directory
 - for all libraries, add -mlongcalls. 
 - audio libraries are complicated to rebuild, open an issue if you really want to
 - libmad, libflac (no esp's version), libvorbis (tremor - not esp's version), alac work
