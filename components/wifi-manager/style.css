@@ -22,7 +22,6 @@ button:focus {
     outline: none;
 }
 input[type="button"] {
-    width: 100px;
     padding: 5px;
     text-align: center;
     display: block;
@@ -375,4 +374,8 @@ textarea#autoexec1 {
 .toggle-buttons input:checked + label {
 	background: #5a9900;
 	box-shadow: none;
+}
+
+#otadiv {
+	display: none;
 }
