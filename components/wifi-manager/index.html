@@ -158,10 +158,14 @@ function heartbeat()
 }
 
 function handleClick(cb) {
-    if (cb.checked) {
-        $("#autoexec-command").show(200);
-    } else {
-        $("#autoexec-command").hide(200);
+    console.log(cb);
+    if (cb.id == 'autoexec-cb') {
+        if (cb.checked) {
+            $("#autoexec-command").show(200);
+        } else {
+            $("#autoexec-command").hide(200);
+        }
+    } else if (cb.id == 'autoexec-cb') {
     }
 }
 </script>
@@ -175,7 +179,7 @@ function handleClick(cb) {
                     </header>
                     <h2>
                         <div id="autoexec" class="toggle">
-                            <label>Run automatically at boot
+                            <label>Run squeezelite automatically at boot
                                 <input id="autoexec-cb" type="checkbox" checked="checked" onclick='handleClick(this);'/><span class="slider"></span>
                             </label>
                         </div>
@@ -184,7 +188,7 @@ function handleClick(cb) {
                     <div id="autoexec-command">
                         <div id="audioout" class="toggle-buttons">
                             <h2>Audio output</h2>
-                            <input type="radio" id="i2s" name="audio" />
+                            <input type="radio" id="i2s" name="audio" checked='checked' />
                             <label for="i2s">I2S</label>
                             <input type="radio" id="spdif" name="audio" />
                             <label for="spdif">SPDIF</label>
@@ -207,14 +211,26 @@ function handleClick(cb) {
                             <input id="generate-command" type="button" value="Generate" />
                         </div>
 
-                        <h2>Command to run</h2>
+                        <h2>Squeezelite command to run</h2>
                         <section id="command-list">
                             <textarea id="autoexec1" maxlength="120">squeezelite -o I2S -b 500:2000 -d all=info -M esp32</textarea>
                         </section>
                     </div>
 
                     <div class="buttons">
-                        <input id="update-command" type="button" value="Update" />
+                        <input id="update-command" type="button" value="Save" />
+                    </div>
+                </div>
+                <div id="recoverydiv">
+                    <header><h1>System management</h1></header>
+                    <h2>Check for firmware upgrade</h2>
+                    <div class="buttons">
+                        <input type="button" id="fwcheck" value="Check" onclick='handleClick(this);' />
+                        <p><span id="currentfw">Currently running: 0.1</span> - <span id="latestfw">latest available version: 0.2</span></p>
+                    </div>
+                    <h2>Reboot to recovery system to perform firmware upgrade</h2>
+                    <div class="buttons">
+                        <input type="button" id="recovery" value="Recovery" onclick='handleClick(this);' />
                     </div>
                 </div>
                 <div id="otadiv">

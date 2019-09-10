@@ -1,3 +1,4 @@
+var recovery = 0;
 var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
 
 // First, checks if it isn't implemented yet.
@@ -186,6 +187,16 @@ $(document).ready(function(){
     $('[name=audio]').click(function(){
         selectOutput(this);
    	});
+
+    if (recovery) {
+		$("#recoverydiv").hide();
+		$("#otadiv").show();
+		$("#command_line").hide();
+		$("#wifi").hide();
+    } else {
+		$("#recoverydiv").show();
+		$("#otadiv").hide();
+    }
 
 	//first time the page loads: attempt get the connection status and start the wifi scan
 	refreshAP();
