@@ -304,6 +304,7 @@ function checkStatus(){
 					
 					//update wait screen
 					$( "#loading" ).hide();
+					$( "#connect-success" ).append("<p>Your IP address now is: " + text(data["ip"]) + "</p>");
 					$( "#connect-success" ).show();
 					$( "#connect-fail" ).hide();
 				}
@@ -418,6 +419,9 @@ function selectOutput(el) {
     if ($(el).attr('id') == 'bt') {
         $("#btsinkdiv").show(200);
         output = 'bt';
+    } else if ($(el).attr('id') == 'spdif') {
+        $("#btsinkdiv").hide(200);
+        output = 'spdif';
     } else {
         $("#btsinkdiv").hide(200);
         output = 'i2s';
@@ -429,6 +433,8 @@ function generateCommand() {
 
     if (output == 'bt') {
         commandLine += ' -o "BT -n \'' + $("#btsink").val() + '\'"  -R -u m -Z 192000 -r "44100-44100"';
+    } else if (output == 'spdif') {
+        commandLine += ' -o SPDIF';
     } else {
         commandLine += ' -o I2S';
     }
