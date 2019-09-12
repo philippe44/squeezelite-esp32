@@ -9,17 +9,7 @@ WiFi-Manager-squeezelite-esp32-I2S-4MFlash-128.zip
 
 Is the name of the 128th build for the "WiFi-Manager" branch from the I2S-4MFlash template. 
 
-# Building yourself
-MOST IMPORTANT: create the right default config file
-- make defconfig
-Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
-- make menuconfig
-Then 
-- make -j4
-- make flash monitor
-
-Once the application is running, under monitor, you can monitor the system activity. 
-
+# Configuration
 1/ setup WiFi
 - Boot the esp, look for a new wifi access point showing up and connect to it.  Default build ssid and passwords are "squeezelite"/"squeezelite". 
 - Once connected, navigate to 192.168.4.1 
@@ -52,7 +42,17 @@ To add options that require quotes ("), escape them with \". For example, so use
 
 nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
 
-# Additional misc notes to do you build
+# Additional misc notes to do your owm build
+MOST IMPORTANT: create the right default config file
+- make defconfig
+Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
+- make menuconfig
+Then 
+- make -j4
+- make flash monitor
+
+Once the application is running, under monitor, you can monitor the system activity. 
+
 - for all libraries, add -mlongcalls. 
 - audio libraries are complicated to rebuild, open an issue if you really want to
 - libmad, libflac (no esp's version), libvorbis (tremor - not esp's version), alac work
