@@ -14,7 +14,6 @@ extern "C" {
 
 // Register system functions
 void register_system();
-void guided_factory();
 
 #ifdef __cplusplus
 }
