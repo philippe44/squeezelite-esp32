@@ -27,7 +27,12 @@ At this point, the device should have disabled its built-in access point and sho
 - Update the configuration
 - Reboot
 
-3/ Enjoy playback
+3/ set bluetooth & airplaysink name (if you want something other than default)
+*this will eventually be moved to the web configuration*
+you need to be connected to the device using a usb to serial adapter, with a terminal program (for example putty) opened on that serial port. 
+- To setup the bluetooth sink name, enter the following command
+nvs_set bt_sink_name str -v "your_bt_name_here" 
+nvs_set airplay_sink_name str -v "your_airplay_name_here"
 
 # Additional command line notes
 The squeezelite options are very similar to the regular Linux ones. Differences are :
