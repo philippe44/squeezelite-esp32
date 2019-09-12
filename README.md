@@ -1,3 +1,15 @@
+# Getting pre-compiled binaries
+An automated build was configured to produce binaries on a regular basis, from common templates that are the most typical. They can be downloaded from : 
+
+https://1drv.ms/u/s!Ajb4bKPgIRMXmwzKLS2o_GxCHRv_?e=V7Nebj
+
+Archive names contain the branch name as well as the template that was used to produce the output. For example :
+
+WiFi-Manager-squeezelite-esp32-I2S-4MFlash-128.zip 
+
+Is the name of the 128th build for the "WiFi-Manager" branch from the I2S-4MFlash template. 
+
+# Building yourself
 MOST IMPORTANT: create the right default config file
 - make defconfig
 Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
@@ -6,22 +18,28 @@ Then
 - make -j4
 - make flash monitor
 
-Once the application is running, under monitor, add autoexec to launch squeezelite at boot
+Once the application is running, under monitor, you can monitor the system activity. 
 
 1/ setup WiFi
-
-nvs_set autoexec1 str -v "join \<SSID\> \<password\>"
+- Boot the esp, look for a new wifi access point showing up and connect to it.  Default build ssid and passwords are "squeezelite"/"squeezelite". 
+- Once connected, navigate to 192.168.4.1 
+- Wait for the list of access points visible from the device to populate in the web page.
+- Choose an access point and enter any credential as needed
+- Once connection is established, note down the address the device received; this is the address you will use to configure it going forward 
 
 2/ setup squeezelite command line (optional)
+At this point, the device should have disabled its built-in access point and should be connected to a known WiFi network.
+- navigate to the address that was noted in step #1
+- Using the list of predefined options, hoose the mode in which you want squeezelite to start
+- Generate the command
+- Add or change any additional command line option (for example player name, etc)
+- Activate squeezelite execution: this tells the device to automatiaclly run the command at start
+- Update the configuration
+- Reboot
 
-nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
+3/ Enjoy playback
 
-3/ enable autoexec
-
-nvs_set autoexec u8 -v 1		
-
-The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
-
+# Additional command line notes
 The squeezelite options are very similar to the regular Linux ones. Differences are :
 
 	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
