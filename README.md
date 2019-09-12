@@ -1,4 +1,5 @@
 ====================================================================================================================================
+
 <strong>Currently this project requires a specific combination of IDF 4 with gcc 5.2. You'll have to implement the gcc 5.2 toolchain from an IDF 3.2 install into the IDF 4 directory in order to successfully compile it</strong>
 ====================================================================================================================================
 
