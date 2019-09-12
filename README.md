@@ -1,27 +1,48 @@
-MOST IMPORTANT: create the right default config file
-- make defconfig
-Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
-- make menuconfig
-Then 
-- make -j4
-- make flash monitor
+# Getting pre-compiled binaries
+An automated build was configured to produce binaries on a regular basis, from common templates that are the most typical. They can be downloaded from : 
 
-Once the application is running, under monitor, add autoexec to launch squeezelite at boot
+https://1drv.ms/u/s!Ajb4bKPgIRMXmwzKLS2o_GxCHRv_?e=V7Nebj
 
+
+Archive names contain the branch name as well as the template that was used to produce the output. For example :
+
+WiFi-Manager-squeezelite-esp32-I2S-4MFlash-128.zip 
+
+Is the name of the 128th build for the "WiFi-Manager" branch from the I2S-4MFlash template. 
+
+# Configuration
 1/ setup WiFi
-
-nvs_set autoexec1 str -v "join \<SSID\> \<password\>"
+- Boot the esp, look for a new wifi access point showing up and connect to it.  Default build ssid and passwords are "squeezelite"/"squeezelite". 
+- Once connected, navigate to 192.168.4.1 
+- Wait for the list of access points visible from the device to populate in the web page.
+- Choose an access point and enter any credential as needed
+- Once connection is established, note down the address the device received; this is the address you will use to configure it going forward 
 
 2/ setup squeezelite command line (optional)
 
-nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
+At this point, the device should have disabled its built-in access point and should be connected to a known WiFi network.
+- navigate to the address that was noted in step #1
+- Using the list of predefined options, hoose the mode in which you want squeezelite to start
+- Generate the command
+- Add or change any additional command line option (for example player name, etc)
+- Activate squeezelite execution: this tells the device to automatiaclly run the command at start
+- Update the configuration
+- Reboot
 
-3/ enable autoexec
+3/ set bluetooth & airplaysink name (if you want something other than default)
 
-nvs_set autoexec u8 -v 1		
+*this will eventually be moved to the web configuration*
 
-The "join" and "squeezelite" commands can also be typed at the prompt to start manually. Use "help" to see the list.
+you need to be connected to the device using a usb to serial adapter, with a terminal program (for example putty) opened on that serial port. 
+- To setup the bluetooth sink name, enter the following command
 
+nvs_set bt_sink_name str -v "your_bt_name_here" 
+
+- To setup the airplay sink name, enter the following command
+
+nvs_set airplay_sink_name str -v "your_airplay_name_here"
+
+# Additional command line notes
 The squeezelite options are very similar to the regular Linux ones. Differences are :
 
 	- the output is -o [\"BT -n <sinkname>\"] | [I2S]
@@ -34,7 +55,17 @@ To add options that require quotes ("), escape them with \". For example, so use
 
 nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'MySpeaker'\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\""
 
-# Additional misc notes to do you build
+# Additional misc notes to do your owm build
+MOST IMPORTANT: create the right default config file
+- make defconfig
+Then adapt the config file to your wifi/BT/I2C device (can alos be done on the command line)
+- make menuconfig
+Then 
+- make -j4
+- make flash monitor
+
+Once the application is running, under monitor, you can monitor the system activity. 
+
 - for all libraries, add -mlongcalls. 
 - audio libraries are complicated to rebuild, open an issue if you really want to
 - libmad, libflac (no esp's version), libvorbis (tremor - not esp's version), alac work
