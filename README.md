@@ -18,6 +18,7 @@ Is the name of the 128th build for the "WiFi-Manager" branch from the I2S-4MFlas
 - Once connection is established, note down the address the device received; this is the address you will use to configure it going forward 
 
 2/ setup squeezelite command line (optional)
+
 At this point, the device should have disabled its built-in access point and should be connected to a known WiFi network.
 - navigate to the address that was noted in step #1
 - Using the list of predefined options, hoose the mode in which you want squeezelite to start
@@ -28,10 +29,16 @@ At this point, the device should have disabled its built-in access point and sho
 - Reboot
 
 3/ set bluetooth & airplaysink name (if you want something other than default)
+
 *this will eventually be moved to the web configuration*
+
 you need to be connected to the device using a usb to serial adapter, with a terminal program (for example putty) opened on that serial port. 
 - To setup the bluetooth sink name, enter the following command
+
 nvs_set bt_sink_name str -v "your_bt_name_here" 
+
+- To setup the airplay sink name, enter the following command
+
 nvs_set airplay_sink_name str -v "your_airplay_name_here"
 
 # Additional command line notes
