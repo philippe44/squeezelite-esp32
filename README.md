@@ -3,6 +3,7 @@ An automated build was configured to produce binaries on a regular basis, from c
 
 https://1drv.ms/u/s!Ajb4bKPgIRMXmwzKLS2o_GxCHRv_?e=V7Nebj
 
+
 Archive names contain the branch name as well as the template that was used to produce the output. For example :
 
 WiFi-Manager-squeezelite-esp32-I2S-4MFlash-128.zip 
