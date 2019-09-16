@@ -23,6 +23,10 @@ nvs_set autoexec1 str -v "join \<SSID\> \<password\>"
 2/ setup squeezelite command line (optional)
 
 nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
+nvs_set autoexec2 str -v "squeezelite -o SPDIF -R -b 500:2000 -d all=info -m ESP32"
+nvs_set autoexec2 str -v "squeezelite -o BT -R -b 500:2000 -d all=info -m ESP32"
+
+(for BT and SPDIF, the -R option allows resampling)
 
 3/ enable autoexec
 
