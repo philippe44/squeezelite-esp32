@@ -49,7 +49,7 @@ The squeezelite options are very similar to the regular Linux ones. Differences 
 	
 	- if you've used RESAMPLE16, <options> are (b|l|m)[:i], with b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients
 	
-To add options that require quotes ("), escape them with \". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
+To add options that require quotes ("), escape them with \\". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
 
 nvs_set autoexec2 str -v "squeezelite -o \"BT -n 'BT sink name' \" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\"
 
