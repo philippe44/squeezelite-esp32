@@ -57,7 +57,7 @@ See squeezlite command line, but keys options are
 
 	- Z <rate> : tell LMS what is the max sample rate supported before LMS resamples
 	- R (see above)
-	- r \"\<minrate\>-\<maxrate\>\"
+	- r \"<minrate>-<maxrate>\"
 
 # Additional misc notes to do you build
 - as of this writing, ESP-IDF has a bug int he way the PLL values are calculated for i2s, so you *must* use the i2s.c file in the patch directory
