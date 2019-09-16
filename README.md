@@ -49,9 +49,15 @@ The squeezelite options are very similar to the regular Linux ones. Differences 
 	
 	- if you've used RESAMPLE16, <options> are (b|l|m)[:i], with b = basic linear interpolation, l = 13 taps, m = 21 taps, i = interpolate filter coefficients
 	
-To add options that require quotes ("), escape them with \\". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
+To add options that require quotes ("), escape them with \\". For example, so use a BT speaker named MySpeaker, accept audio up to 192kHz and resample everything to 44100 and use 16 bits resample with medium quality, the command line is:
 
 nvs_set autoexec2 str -v "squeezelite -o \\"BT -n 'BT \<sinkname\>'\\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\"
+
+See squeezlite command line, but keys options are
+
+	- Z <rate> : tell LMS what is the max sample rate supported before LMS resamples
+	- R (see above)
+	- r \"\<minrate\>-\<maxrate\>\"
 
 # Additional misc notes to do you build
 - as of this writing, ESP-IDF has a bug int he way the PLL values are calculated for i2s, so you *must* use the i2s.c file in the patch directory
