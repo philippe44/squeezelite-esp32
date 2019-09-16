@@ -237,11 +237,14 @@ function handleClick(cb) {
                     <header><h1>Firmware upgrade</h1></header>
                     <form name="multipart" action="otaform" method="post" enctype="multipart/form-data" onsubmit="do_upload(this); return false;">
                         <progress id="progr" value="0" max="100" >Upload Progress</progress>
-                        <input type="file" name="ota" id="ota" size="20" accept=".bin" onchange="file_change();" style="font-size: 12pt">
-                        <span id="file_info" style="font-size:12pt;"></span>
-                        <input type="submit" id="update" disabled="" value="upload">
-                        <input type="submit" id="factory"  disabled="" value="factory">
+                        <input type="file" name="ota" id="ota" size="20" accept=".bin" onchange="file_change();">
+                        <span id="file_info"></span>
+                        <input type="submit" id="update" disabled="" value="Upload">
                     </form>
+                    <h2>Reboot system with new firmware</h2>
+                    <div class="buttons">
+                        <input type="button" id="reboot" value="Reboot" onclick='handleClick(this);' />
+                    </div>
                 </div>
 
 				<div id="wifi">
