@@ -51,7 +51,7 @@ The squeezelite options are very similar to the regular Linux ones. Differences 
 	
 To add options that require quotes ("), escape them with \\". For example, so use a BT speaker named MySpeaker and resample everything to 44100 (which is needed with Bluetooth) and use 16 bits resample with medium quality, the command line is:
 
-nvs_set autoexec2 str -v "squeezelite -o \\"BT -n 'BT \<sinkname\>' \\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\"
+nvs_set autoexec2 str -v "squeezelite -o \\"BT -n 'BT \<sinkname\>'\\" -b 500:2000 -R -u m -Z 192000 -r \"44100-44100\"
 
 # Additional misc notes to do you build
 - as of this writing, ESP-IDF has a bug int he way the PLL values are calculated for i2s, so you *must* use the i2s.c file in the patch directory
