@@ -26,7 +26,7 @@ nvs_set autoexec2 str -v "squeezelite -o I2S -b 500:2000 -d all=info -m ESP32"
 
 nvs_set autoexec2 str -v "squeezelite -o SPDIF -R -b 500:2000 -d all=info -m ESP32"
 
-nvs_set autoexec2 str -v "squeezelite -o BT \\"-n '<sinkname>' \\" -R -b 500:2000 -d all=info -m ESP32"
+nvs_set autoexec2 str -v "squeezelite -o \\"BT -n '<sinkname>' \\" -R -b 500:2000 -d all=info -m ESP32"
 
 (for BT and SPDIF, the -R option allows resampling)
 
