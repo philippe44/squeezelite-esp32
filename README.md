@@ -1,14 +1,10 @@
 # Getting pre-compiled binaries
 An automated build was configured to produce binaries on a regular basis, from common templates that are the most typical. They can be downloaded from : 
 
-https://1drv.ms/u/s!Ajb4bKPgIRMXmwzKLS2o_GxCHRv_?e=V7Nebj
+https://github.com/sle118/squeezelite-esp32/releases
+ 
 
 
-Archive names contain the branch name as well as the template that was used to produce the output. For example :
-
-WiFi-Manager-squeezelite-esp32-I2S-4MFlash-128.zip 
-
-Is the name of the 128th build for the "WiFi-Manager" branch from the I2S-4MFlash template. 
 
 # Configuration
 1/ setup WiFi
