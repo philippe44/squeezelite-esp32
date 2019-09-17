@@ -55,8 +55,12 @@ Contains the freeRTOS task and all necessary support
 #include "lwip/netdb.h"
 #include "lwip/ip4_addr.h"
 
-
-
+#ifndef SQUEEZELITE_ESP32_BASE_RELEASE
+#define SQUEEZELITE_ESP32_BASE_RELEASE "unknown"
+#endif
+#ifndef SQUEEZELITE_ESP32_RELEASE_URL
+#define SQUEEZELITE_ESP32_RELEASE_URL "https://github.com/sle118/squeezelite-esp32/releases"
+#endif
 
 
 /* objects used to manipulate the main queue of events */
