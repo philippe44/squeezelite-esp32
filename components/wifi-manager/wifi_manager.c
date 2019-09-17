@@ -170,6 +170,7 @@ void wifi_manager_start(){
 	/* start wifi manager task */
 	xTaskCreate(&wifi_manager, "wifi_manager", 4096, NULL, WIFI_MANAGER_TASK_PRIORITY, &task_wifi_manager);
 }
+
 uint8_t wifi_manager_get_flag(){
 	uint8_t value=0;
 	nvs_handle handle;
@@ -244,6 +245,7 @@ esp_err_t wifi_manager_save_autoexec_flag(uint8_t flag){
 
 	return ESP_OK;
 }
+
 esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 	nvs_handle handle;
     char val[len+1];
@@ -276,8 +278,8 @@ esp_err_t wifi_manager_save_autoexec_config(char * value, char * name, int len){
 	return ESP_OK;
 
 }
-esp_err_t wifi_manager_save_sta_config(){
 
+esp_err_t wifi_manager_save_sta_config(){
 	nvs_handle handle;
 	esp_err_t esp_err;
 	ESP_LOGI(TAG, "About to save config to flash");
@@ -320,7 +322,6 @@ esp_err_t wifi_manager_save_sta_config(){
 }
 
 bool wifi_manager_fetch_wifi_sta_config(){
-
 	nvs_handle handle;
 	esp_err_t esp_err;
 
@@ -403,7 +404,6 @@ void wifi_manager_clear_ip_info_json(){
 
 
 void wifi_manager_generate_ip_info_json(update_reason_code_t update_reason_code){
-
 	wifi_config_t *config = wifi_manager_get_wifi_sta_config();
 	if(config){
 
@@ -445,16 +445,14 @@ void wifi_manager_generate_ip_info_json(update_reason_code_t update_reason_code)
 	else{
 		wifi_manager_clear_ip_info_json();
 	}
-
-
 }
 
 
 void wifi_manager_clear_access_points_json(){
 	strcpy(accessp_json, "[]\n");
 }
-void wifi_manager_generate_acess_points_json(){
 
+void wifi_manager_generate_acess_points_json(){
 	strcpy(accessp_json, "[");
 
 
@@ -483,8 +481,6 @@ void wifi_manager_generate_acess_points_json(){
 
 }
 
-
-
 bool wifi_manager_lock_sta_ip_string(TickType_t xTicksToWait){
 	if(wifi_manager_sta_ip_mutex){
 		if( xSemaphoreTake( wifi_manager_sta_ip_mutex, xTicksToWait ) == pdTRUE ) {
@@ -499,12 +495,12 @@ bool wifi_manager_lock_sta_ip_string(TickType_t xTicksToWait){
 	}
 
 }
+
 void wifi_manager_unlock_sta_ip_string(){
 	xSemaphoreGive( wifi_manager_sta_ip_mutex );
 }
 
 void wifi_manager_safe_update_sta_ip_string(uint32_t ip){
-
 	if(wifi_manager_lock_sta_ip_string(portMAX_DELAY)){
 
 		struct ip4_addr ip4;
@@ -524,7 +520,6 @@ char* wifi_manager_get_sta_ip_string(){
 	return wifi_manager_sta_ip;
 }
 
-
 bool wifi_manager_lock_json_buffer(TickType_t xTicksToWait){
 	if(wifi_manager_json_mutex){
 		if( xSemaphoreTake( wifi_manager_json_mutex, xTicksToWait ) == pdTRUE ) {
@@ -539,6 +534,7 @@ bool wifi_manager_lock_json_buffer(TickType_t xTicksToWait){
 	}
 
 }
+
 void wifi_manager_unlock_json_buffer(){
 	xSemaphoreGive( wifi_manager_json_mutex );
 }
@@ -547,12 +543,8 @@ char* wifi_manager_get_ap_list_json(){
 	return accessp_json;
 }
 
-
 esp_err_t wifi_manager_event_handler(void *ctx, system_event_t *event)
 {
-
-
-
     switch(event->event_id) {
 
     case SYSTEM_EVENT_WIFI_READY:
@@ -629,7 +621,6 @@ wifi_config_t* wifi_manager_get_wifi_sta_config(){
 	return wifi_manager_config_sta;
 }
 
-
 void wifi_manager_connect_async(){
 	/* in order to avoid a false positive on the front end app we need to quickly flush the ip json
 	 * There'se a risk the front end sees an IP or a password error when in fact
@@ -648,7 +639,6 @@ char* wifi_manager_get_ip_info_json(){
 }
 
 void wifi_manager_destroy(){
-
 	vTaskDelete(task_wifi_manager);
 	task_wifi_manager = NULL;
 
@@ -675,10 +665,7 @@ void wifi_manager_destroy(){
 	wifi_manager_event_group = NULL;
 	vQueueDelete(wifi_manager_queue);
 	wifi_manager_queue = NULL;
-
-
 }
-
 
 void wifi_manager_filter_unique( wifi_ap_record_t * aplist, uint16_t * aps) {
 	int total_unique;
@@ -731,7 +718,6 @@ void wifi_manager_filter_unique( wifi_ap_record_t * aplist, uint16_t * aps) {
 	*aps = total_unique;
 }
 
-
 BaseType_t wifi_manager_send_message_to_front(message_code_t code, void *param){
 	queue_message msg;
 	msg.code = code;
@@ -746,24 +732,17 @@ BaseType_t wifi_manager_send_message(message_code_t code, void *param){
 	return xQueueSend( wifi_manager_queue, &msg, portMAX_DELAY);
 }
 
-
 void wifi_manager_set_callback(message_code_t message_code, void (*func_ptr)(void*) ){
-
 	if(cb_ptr_arr && message_code < MESSAGE_CODE_COUNT){
 		cb_ptr_arr[message_code] = func_ptr;
 	}
 }
 
 void wifi_manager( void * pvParameters ){
-
-
 	queue_message msg;
 	BaseType_t xStatus;
 	EventBits_t uxBits;
 	uint8_t	retries = 0;
-
-
-
 
 
 	/* initialize the tcp stack */
@@ -1138,7 +1117,4 @@ void wifi_manager( void * pvParameters ){
 	} /* end of for loop */
 
 	vTaskDelete( NULL );
-
 }
-
-

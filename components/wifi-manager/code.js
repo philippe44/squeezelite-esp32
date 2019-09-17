@@ -33,14 +33,12 @@ function stopCheckStatusInterval(){
 }
 
 function stopRefreshAPInterval(){
-	
 	if(refreshAPInterval != null){
 		 clearTimeout(refreshAPInterval);
 		refreshAPInterval = null;
 	}
 	RefreshAPIIntervalActive = false;
 }
-
 
 function startCheckStatusInterval(){
 	StatusIntervalActive = true;
@@ -51,7 +49,6 @@ function startRefreshAPInterval(){
 	RefreshAPIIntervalActive = true;
 	refreshAPInterval = setTimeout(refreshAP, 2800);
 }
-
 
 function RepeatCheckStatusInterval(){
 	if(StatusIntervalActive)
@@ -155,7 +152,6 @@ $(document).ready(function(){
 	});
 	
 	$("#yes-disconnect").on("click", function() {
-		
 		stopCheckStatusInterval();
 		selectedSSID = "";
 		
@@ -206,7 +202,6 @@ $(document).ready(function(){
 });
 
 function performConnect(conntype){
-	
 	//stop the status refresh. This prevents a race condition where a status 
 	//request would be refreshed with wrong ip info from a previous connection
 	//and the request would automatically shows as succesful.
@@ -277,10 +272,10 @@ function refreshAP(){
 			});
 			apList = data;
 			refreshAPHTML(apList);
-			
 		}
 	});
-	RepeatRefreshAPInterval();
+    //TODO daduke
+//	RepeatRefreshAPInterval();
 }
 
 function refreshAPHTML(data){
@@ -295,9 +290,6 @@ function refreshAPHTML(data){
 
 function checkStatus(){
 	$.getJSON( "/status.json", function( data ) {
-		if(data.hasOwnProperty('autoexec1') && data['autoexec1'] != ""){
-			$("#autoexec1_current").text(data["autoexec1"]);
-		}	
 		if(data.hasOwnProperty('ssid') && data['ssid'] != ""){
 			if(data["ssid"] === selectedSSID){
 				//that's a connection attempt
@@ -349,6 +341,10 @@ function checkStatus(){
 					$("#gw").text(data["gw"]);
 					$("#wifi-status").slideDown( "fast", function() {});
 				}
+//TODO daduke
+console.log("stopping timers..");
+stopCheckStatusInterval();
+stopRefreshAPInterval
 			}
 		}
 		else if(data.hasOwnProperty('urc') && data['urc'] === 2){
@@ -443,9 +439,9 @@ function generateCommand() {
     var commandLine = commandHeader + '-n ' + $("#player").val();
 
     if (output == 'bt') {
-        commandLine += ' -o "BT -n \'' + $("#btsink").val() + '\'"  -R -u m -Z 192000 -r "44100-44100"';
+        commandLine += ' -o "BT -n \'' + $("#btsink").val() + '\'" -R -Z 192000';
     } else if (output == 'spdif') {
-        commandLine += ' -o SPDIF';
+        commandLine += ' -o SPDIF -R -Z 192000';
     } else {
         commandLine += ' -o I2S';
     }
