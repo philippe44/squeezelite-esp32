@@ -1,7 +1,3 @@
-var recovery = 0;
-var enableTimers = true;
-var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
-
 // First, checks if it isn't implemented yet.
 if (!String.prototype.format) {
   String.prototype.format = function() {
@@ -15,6 +11,10 @@ if (!String.prototype.format) {
   };
 }
 
+var recovery = 0;
+var enableTimers = true;
+var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
+
 var apList = null;
 var selectedSSID = "";
 var refreshAPInterval = null; 
@@ -24,6 +24,8 @@ var StatusIntervalActive = false;
 var ConfigIntervalActive = false;
 var RefreshAPIIntervalActive = false;
 
+//TODO check
+var to = 0, set_int = 0;
 
 function stopCheckStatusInterval(){
 	if(checkStatusInterval != null){
@@ -409,23 +411,6 @@ function updateAutoexec(){
     console.log('sent config JSON with headers:', autoexec, autoexec1);
 }
 
-function performFactory(){
-// 	$( "#ok-connect" ).prop("disabled",true);
-// 	$( "#ssid-wait" ).text(selectedSSID);
-// 	$( "#connect" ).slideUp( "fast", function() {});
-// 	$( "#connect_manual" ).slideUp( "fast", function() {});
-// 	$( "#connect-wait" ).slideDown( "fast", function() {});
-// 	// todo: should we update the UI here? 
-	
-	$.ajax({
-		url: '/factory.json',
-		dataType: 'json',
-		method: 'POST',
-		cache: false,
-		data: { 'timestamp': Date.now()}
-	});
-}
-
 var output = '';
 function selectOutput(el) {
     if ($(el).attr('id') == 'bt') {
@@ -454,4 +439,103 @@ function generateCommand() {
         commandLine += ' ' + $("#optional").val();
     }
     $("#autoexec1").val(commandLine);
+}
+
+function handleClick(item) {
+    console.log(item);
+    if (item.id == 'autoexec-cb') {
+        if (item.checked) {
+            $("#autoexec-command").show(200);
+        } else {
+            $("#autoexec-command").hide(200);
+        }
+    } else if (item.id == 'recovery') {
+        $.ajax({
+            url: '/recovery.json',
+            dataType: 'json',
+            method: 'POST',
+            cache: false,
+            data: { 'timestamp': Date.now()}
+        });
+    } else if (item.id == 'reboot') {
+        $.ajax({
+            url: '/reboot.json',
+            dataType: 'json',
+            method: 'POST',
+            cache: false,
+            data: { 'timestamp': Date.now()}
+        });
+    }
+}
+
+//TODO daduke check
+function file_change() {
+        document.getElementById('update').disabled = 0;
+}
+
+function do_upload(f) {
+	var xhr = new XMLHttpRequest();
+
+        document.getElementById('update').disabled = 1;
+	//ws.close();
+	document.getElementById("progr").class = "progr-ok";
+
+	xhr.upload.addEventListener("progress", function(e) {
+		document.getElementById("progr").value = parseInt(e.loaded / e.total * 100);
+
+		if (e.loaded == e.total) {
+		//	document.getElementById("realpage").style.display = "none";
+		//	document.getElementById("waiting").style.display = "block";
+		}
+	
+	}, false);
+
+	xhr.onreadystatechange = function(e) {
+		   console.log("rs" + xhr.readyState + " status " + xhr.status); 
+		if (xhr.readyState == 4) {
+			/* it completed, for good or for ill */
+		//	document.getElementById("realpage").style.display = "none";
+		//	document.getElementById("waiting").style.display = "block";
+			document.getElementById("progr").class = "progr-ok";
+			console.log("upload reached state 4: xhr status " + xhr.status);
+			setTimeout(function() { window.location.href = location.origin + "/"; }, 9000 );
+		}
+	};
+
+	/* kill the heart timer */
+	clearInterval(set_int);
+
+	xhr.open("POST", f.action, true);
+	xhr.send(new FormData(f));
+
+	return false;
+}
+
+function heart_timer() {
+	var s;
+	
+	s = Math.round((95 * to) / (40 * 10)) / 100;
+	
+	if (s < 0) {
+		clearInterval(set_int);
+		set_int = 0;
+		
+		ws.close();
+		
+		document.getElementById("realpage").style.opacity = "0.3";
+	}
+		
+	
+	to--;
+	document.getElementById("heart").style.opacity = s;
+}
+
+
+function heartbeat()
+{
+	to = 40 * 10;
+	if (!set_int) {
+		set_int = setInterval(heart_timer, 100);
+	}
+		
 }
