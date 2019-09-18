@@ -1,4 +1,5 @@
 var recovery = 0;
+var enableTimers = true;
 var commandHeader = 'squeezelite -b 500:2000 -d all=info ';
 
 // First, checks if it isn't implemented yet.
@@ -194,11 +195,13 @@ $(document).ready(function(){
 		$("#otadiv").hide();
     }
 
-	//first time the page loads: attempt get the connection status and start the wifi scan
+	//first time the page loads: attempt to get the connection status and start the wifi scan
 	refreshAP();
+    getConfig();
+
+    //start timers
 	startCheckStatusInterval();
 	startRefreshAPInterval();
-    getConfig();
 });
 
 function performConnect(conntype){
@@ -263,6 +266,7 @@ function rssiToIcon(rssi){
 }
 
 function refreshAP(){
+    if (!enableTimers) return;
 	$.getJSON( "/ap.json", function( data ) {
 		if(data.length > 0){
 			//sort by signal strength
@@ -274,8 +278,6 @@ function refreshAP(){
 			refreshAPHTML(apList);
 		}
 	});
-    //TODO daduke
-//	RepeatRefreshAPInterval();
 }
 
 function refreshAPHTML(data){
@@ -289,6 +291,7 @@ function refreshAPHTML(data){
 }
 
 function checkStatus(){
+    if (!enableTimers) return;
 	$.getJSON( "/status.json", function( data ) {
 		if(data.hasOwnProperty('ssid') && data['ssid'] != ""){
 			if(data["ssid"] === selectedSSID){
@@ -310,6 +313,8 @@ function checkStatus(){
 					$( "#connect-success" ).append("<p>Your IP address now is: " + text(data["ip"]) + "</p>");
 					$( "#connect-success" ).show();
 					$( "#connect-fail" ).hide();
+
+                    enableTimers = false;
 				}
 				else if(data["urc"] === 1){
 					//failed attempt
@@ -329,6 +334,8 @@ function checkStatus(){
 					$( "#loading" ).hide();
 					$( "#connect-fail" ).show();
 					$( "#connect-success" ).hide();
+                    
+                    enableTimers = true;
 				}
 			}
 			else if(data.hasOwnProperty('urc') && data['urc'] === 0){
@@ -341,10 +348,7 @@ function checkStatus(){
 					$("#gw").text(data["gw"]);
 					$("#wifi-status").slideDown( "fast", function() {});
 				}
-//TODO daduke
-console.log("stopping timers..");
-stopCheckStatusInterval();
-stopRefreshAPInterval
+                enableTimers = false;
 			}
 		}
 		else if(data.hasOwnProperty('urc') && data['urc'] === 2){
@@ -352,6 +356,7 @@ stopRefreshAPInterval
 			if($("#wifi-status").is(":visible")){
 				$("#wifi-status").slideUp( "fast", function() {});
 			}
+            enableTimers = true;
 		}
 	})
 	.fail(function() {
