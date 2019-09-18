@@ -262,11 +262,13 @@ void http_server_netconn_serve(struct netconn *conn) {
 								ESP_LOGD(TAG,"No matching command found for name %s", autoexec_name);
 								break;
 							}
-							i++;
+                            i++;
 						} while(1);
 						free(buff);
+
 						netconn_write(conn, json_end, strlen(json_end), NETCONN_NOCOPY);
 						ESP_LOGD(TAG,"%s", json_end);
+
 					}
 				}
 				else if(strstr(line, "POST /factory.json ")){
@@ -304,7 +306,6 @@ void http_server_netconn_serve(struct netconn *conn) {
 							ESP_LOGD(TAG,"Looking for command name %s.", autoexec_name);
 							autoexec_value = http_server_get_header(save_ptr, autoexec_name, &lenS);
 
-
 							if(autoexec_value ){
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
 									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s, length %i", autoexec_key, autoexec_value, lenS);
@@ -323,6 +324,11 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 						netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY); //200ok
 
+                        //reboot esp if autoexec1 was modified
+                            if (i > 1) { 
+							ESP_LOGD(TAG,"autoexec1 changed, triggering reboot");
+                            esp_restart();
+                        }
 					}
 					else{
 						netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
