@@ -164,19 +164,26 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 			}
 			else{
+                //static stuff
 				/* default page */
 				if(strstr(line, "GET / ")) {
 					netconn_write(conn, http_html_hdr, sizeof(http_html_hdr) - 1, NETCONN_NOCOPY);
 					netconn_write(conn, index_html_start, index_html_end - index_html_start, NETCONN_NOCOPY);
 				}
-				else if(strstr(line, "GET /jquery.js ")) {
-					netconn_write(conn, http_jquery_gz_hdr, sizeof(http_jquery_gz_hdr) - 1, NETCONN_NOCOPY);
-					netconn_write(conn, jquery_gz_start, jquery_gz_end - jquery_gz_start, NETCONN_NOCOPY);
-				}
 				else if(strstr(line, "GET /code.js ")) {
 					netconn_write(conn, http_js_hdr, sizeof(http_js_hdr) - 1, NETCONN_NOCOPY);
 					netconn_write(conn, code_js_start, code_js_end - code_js_start, NETCONN_NOCOPY);
 				}
+				else if(strstr(line, "GET /jquery.js ")) {
+					netconn_write(conn, http_jquery_gz_hdr, sizeof(http_jquery_gz_hdr) - 1, NETCONN_NOCOPY);
+					netconn_write(conn, jquery_gz_start, jquery_gz_end - jquery_gz_start, NETCONN_NOCOPY);
+				}
+				else if(strstr(line, "GET /style.css ")) {
+					netconn_write(conn, http_css_hdr, sizeof(http_css_hdr) - 1, NETCONN_NOCOPY);
+					netconn_write(conn, style_css_start, style_css_end - style_css_start, NETCONN_NOCOPY);
+				}
+
+                //dynamic stuff
 				else if(strstr(line, "GET /ap.json ")) {
 					/* if we can get the mutex, write the last version of the AP list */
 					ESP_LOGI(TAG,"Processing ap.json request");
@@ -193,29 +200,6 @@ void http_server_netconn_serve(struct netconn *conn) {
 					/* request a wifi scan */
 					ESP_LOGI(TAG,"Starting wifi scan");
 					wifi_manager_scan_async();
-				}
-				else if(strstr(line, "GET /style.css ")) {
-					netconn_write(conn, http_css_hdr, sizeof(http_css_hdr) - 1, NETCONN_NOCOPY);
-					netconn_write(conn, style_css_start, style_css_end - style_css_start, NETCONN_NOCOPY);
-				}
-				else if(strstr(line, "GET /status.json ")){
-					ESP_LOGI(TAG,"Serving status.json");
-					if(wifi_manager_lock_json_buffer(( TickType_t ) 10)){
-						char *buff = wifi_manager_get_ip_info_json();
-						if(buff){
-							netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY);
-							netconn_write(conn, buff, strlen(buff), NETCONN_NOCOPY);
-
-							wifi_manager_unlock_json_buffer();
-						}
-						else{
-							netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
-						}
-					}
-					else{
-						netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
-						ESP_LOGE(TAG, "http_server_netconn_serve: GET /status failed to obtain mutex");
-					}
 				}
 				else if(strstr(line, "GET /config.json ")){
 					ESP_LOGI(TAG,"Serving config.json");
@@ -262,15 +246,14 @@ void http_server_netconn_serve(struct netconn *conn) {
 								ESP_LOGD(TAG,"No matching command found for name %s", autoexec_name);
 								break;
 							}
-							i++;
+                            i++;
 						} while(1);
 						free(buff);
+
 						netconn_write(conn, json_end, strlen(json_end), NETCONN_NOCOPY);
 						ESP_LOGD(TAG,"%s", json_end);
+
 					}
-				}
-				else if(strstr(line, "POST /factory.json ")){
-					guided_factory();
 				}
 				else if(strstr(line, "POST /config.json ")){
 					ESP_LOGI(TAG,"Serving POST config.json");
@@ -304,7 +287,6 @@ void http_server_netconn_serve(struct netconn *conn) {
 							ESP_LOGD(TAG,"Looking for command name %s.", autoexec_name);
 							autoexec_value = http_server_get_header(save_ptr, autoexec_name, &lenS);
 
-
 							if(autoexec_value ){
 								if(lenS < MAX_COMMAND_LINE_SIZE ){
 									ESP_LOGD(TAG, "http_server_netconn_serve: config.json/ call, with %s: %s, length %i", autoexec_key, autoexec_value, lenS);
@@ -323,19 +305,17 @@ void http_server_netconn_serve(struct netconn *conn) {
 
 						netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY); //200ok
 
+                        //reboot esp if autoexec1 was modified
+                            if (i > 1) { 
+							ESP_LOGD(TAG,"autoexec1 changed, triggering reboot");
+                            esp_restart();
+                        }
 					}
 					else{
 						netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
 						ESP_LOGE(TAG, "http_server_netconn_serve: GET /status failed to obtain mutex");
 					}
-				}
-
-				else if(strstr(line, "DELETE /connect.json ")) {
-					ESP_LOGI(TAG, "http_server_netconn_serve: DELETE /connect.json");
-					/* request a disconnection from wifi and forget about it */
-					wifi_manager_disconnect_async();
-					netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY); /* 200 ok */
-				}
+				} 
 				else if(strstr(line, "POST /connect.json ")) {
 					ESP_LOGI(TAG, "http_server_netconn_serve: POST /connect.json");
 					bool found = false;
@@ -361,6 +341,37 @@ void http_server_netconn_serve(struct netconn *conn) {
 						ESP_LOGE(TAG, "bad request the authentification header is not complete/not the correct format");
 					}
 
+				}
+				else if(strstr(line, "DELETE /connect.json ")) {
+					ESP_LOGI(TAG, "http_server_netconn_serve: DELETE /connect.json");
+					/* request a disconnection from wifi and forget about it */
+					wifi_manager_disconnect_async();
+					netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY); /* 200 ok */
+				}
+				else if(strstr(line, "POST /reboot.json ")){
+					esp_restart();
+				}
+				else if(strstr(line, "POST /recovery.json ")){
+					guided_factory();
+				}
+				else if(strstr(line, "GET /status.json ")){
+					ESP_LOGI(TAG,"Serving status.json");
+					if(wifi_manager_lock_json_buffer(( TickType_t ) 10)){
+						char *buff = wifi_manager_get_ip_info_json();
+						if(buff){
+							netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY);
+							netconn_write(conn, buff, strlen(buff), NETCONN_NOCOPY);
+
+							wifi_manager_unlock_json_buffer();
+						}
+						else{
+							netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
+						}
+					}
+					else{
+						netconn_write(conn, http_503_hdr, sizeof(http_503_hdr) - 1, NETCONN_NOCOPY);
+						ESP_LOGE(TAG, "http_server_netconn_serve: GET /status failed to obtain mutex");
+					}
 				}
 				else{
 					netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);
